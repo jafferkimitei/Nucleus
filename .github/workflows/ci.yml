@@ -95,10 +95,87 @@ jobs:
           path: form-builder/playwright-report/
           retention-days: 7
 
-# Deployment is handled by Vercel's own GitHub integration (see
-# form-builder/vercel.json + the Vercel project's Root Directory setting),
-# not by this workflow — Vercel deploys a preview for every PR and
-# production on every push to main independently of CI. This workflow is
-# the quality gate: pair it with a GitHub branch protection rule on `main`
-# requiring these jobs to pass before merge, so nothing unreviewed reaches
-# the branch Vercel deploys to production. See the root README.
+  lint-and-typecheck-anvil:
+    name: Lint, format & typecheck (anvil)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --workspace=anvil
+      - run: npm run format:check --workspace=anvil
+      - run: npm run typecheck --workspace=anvil
+
+  unit-tests-anvil:
+    name: Unit & integration tests (anvil)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage --workspace=anvil
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-anvil
+          path: anvil/coverage/
+          retention-days: 7
+
+  build-anvil:
+    name: Build (anvil)
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck-anvil, unit-tests-anvil]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=anvil
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-anvil
+          path: anvil/dist/
+          retention-days: 7
+
+  e2e-anvil:
+    name: Playwright E2E (anvil)
+    runs-on: ubuntu-latest
+    needs: [build-anvil]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Same reasoning as form-builder's e2e job above: reuse the exact
+      # artifact `build-anvil` already produced rather than rebuilding.
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-anvil
+          path: anvil/dist
+      - run: npx playwright install --with-deps
+        working-directory: anvil
+      - run: npm run test:e2e --workspace=anvil
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-anvil
+          path: anvil/playwright-report/
+          retention-days: 7
+
+# Deployment is handled by Vercel's own GitHub integration (see each
+# project's vercel.json + that project's Vercel project Root Directory
+# setting), not by this workflow — Vercel deploys a preview for every PR
+# and production on every push to main independently of CI. This workflow
+# is the quality gate: pair it with a GitHub branch protection rule on
+# `main` requiring these jobs to pass before merge, so nothing unreviewed
+# reaches the branch Vercel deploys to production. See the root README.
