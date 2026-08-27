@@ -1,6 +1,7 @@
 import { memo } from 'react'
 
 import { Button } from '@/components/ui/Button'
+import { isFieldVisible, maskUntouchedErrors } from '@/features/validation'
 import type { FormController } from '@/features/workflow'
 import type { FormSchema } from '@/types/schema'
 
@@ -24,6 +25,8 @@ function FormRendererImpl({ schema, controller }: FormRendererProps) {
     currentStepIndex,
     values,
     errors,
+    touched,
+    asyncStatus,
     visitedStepIndices,
     setFieldValue,
     setFieldTouched,
@@ -38,6 +41,21 @@ function FormRendererImpl({ schema, controller }: FormRendererProps) {
   if (!step) {
     return null
   }
+
+  // The store keeps `errors` current for every field so `goToStep` can
+  // gate on it, but a field only *displays* its error once it's been
+  // touched — see maskUntouchedErrors's doc comment.
+  const displayErrors = maskUntouchedErrors(errors, touched)
+
+  // Next stays clickable even when the step is invalid — clicking it is
+  // what reveals the errors (see goToStep) — but there's nothing useful
+  // to reveal while an async check is still in flight, so it's disabled
+  // just for that.
+  const hasPendingAsyncCheck = step.fields.some(
+    (field) =>
+      isFieldVisible(field, values, asyncStatus) &&
+      asyncStatus[field.name] === 'pending',
+  )
 
   return (
     <div className="form">
@@ -76,7 +94,8 @@ function FormRendererImpl({ schema, controller }: FormRendererProps) {
       <StepRenderer
         step={step}
         values={values}
-        errors={errors}
+        errors={displayErrors}
+        asyncStatus={asyncStatus}
         onFieldChange={setFieldValue}
         onFieldBlur={setFieldTouched}
       />
@@ -89,8 +108,11 @@ function FormRendererImpl({ schema, controller }: FormRendererProps) {
         >
           Back
         </Button>
-        <Button onClick={goToNextStep} disabled={isLastStep}>
-          Next
+        <Button
+          onClick={goToNextStep}
+          disabled={isLastStep || hasPendingAsyncCheck}
+        >
+          {hasPendingAsyncCheck ? 'Checking…' : 'Next'}
         </Button>
       </div>
     </div>

@@ -4,10 +4,11 @@ A configurable, metadata-driven, multi-step form builder: a drag-and-drop
 dashboard for building forms as data, plus the runtime that renders and
 validates them.
 
-> **Status: Phase 2 — state management & multi-step workflow engine.** The
-> architecture write-up, diagrams, and "trade-offs" case study called for
-> by the project brief land in this README once the rest of the engine
-> (Phases 3-6) exists to document. For now, this is the setup guide.
+> **Status: Phase 3 — validation engine (sync, cross-field, async
+> conditional).** The architecture write-up, diagrams, and "trade-offs"
+> case study called for by the project brief land in this README once the
+> rest of the engine (Phases 4-6) exists to document. For now, this is
+> the setup guide.
 
 This project lives inside an npm-workspaces monorepo — see the
 [root README](../README.md) for the workspace layout. Commands below
@@ -18,8 +19,8 @@ also reachable from the repo root via `npm run <script> --workspace=form-builder
 
 1. ~~Project scaffold: strict TS, ESLint/Prettier, Vitest, Playwright, CI~~
 2. ~~Metadata-driven form schema & renderer~~
-3. ~~State management & multi-step workflow engine~~ (this phase)
-4. Validation engine (sync, cross-field, async conditional)
+3. ~~State management & multi-step workflow engine~~
+4. ~~Validation engine (sync, cross-field, async conditional)~~ (this phase)
 5. Drag-and-drop builder dashboard
 6. Performance tuning pass
 7. Test coverage (unit + integration + E2E)
@@ -79,19 +80,33 @@ src/
       renderTracker.ts     Per-field render counter used only by the
                             render-isolation test
       fields/               One control per FieldType
-    workflow/           Multi-step navigation + store (Phase 2, done)
+    workflow/           Multi-step navigation + store (Phases 2-3, done)
       types.ts              FormController contract (state + actions +
                              derived isDirty) — the shape form-renderer
                              consumes and knows nothing else about
       createFormStore.ts    Per-instance Zustand store factory: values,
-                             errors (still {} until Phase 3), touched,
-                             dirty, visitedStepIndices, and the
-                             goToStep branching rule
+                             errors, touched, dirty, asyncStatus,
+                             visitedStepIndices; wires the validation/
+                             module's pure functions in for sync rules,
+                             visibility cascades, and debounced/
+                             race-safe async checks; goToStep force-
+                             validates + touches the current step's
+                             visible fields on forward navigation only
       useWorkflowFormController.ts  React hook: one store per mounted
                                      instance via useState's lazy
                                      initializer, never a module-level
                                      singleton
-    validation/         Sync/async/cross-field validation (Phase 3)
+    validation/         Sync/cross-field/async validation (Phase 3, done)
+      syncRules.ts           required/min/max/length/pattern rule checks
+      evaluateCondition.ts   visibleWhen conditions, incl. one field
+                              gated on another's asyncStatus
+      buildFieldIndex.ts     name -> field lookup + dependents graph,
+                              used to cascade-clear hidden fields
+      asyncValidator.ts      mock network validator (debounced,
+                              simulated latency) fields' `async` rules
+                              call through
+      maskUntouchedErrors.ts hides an error until its field is touched,
+                              so untouched-but-invalid fields stay quiet
     builder/            Drag-and-drop builder dashboard (Phase 4)
   types/schema.ts       FormSchema/StepSchema/FieldSchema — the contract
                         everything above renders from

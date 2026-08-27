@@ -1,9 +1,11 @@
 import type { FormSchema } from '@/types/schema'
 
 /**
- * A demo schema exercising every field type, used by the App shell (so
- * the renderer has something real to prove itself against) and by the
- * test suite. Not meant to ship as real product copy.
+ * A demo schema exercising every field type — plus required/sync
+ * validation, an async validation rule, and an async-conditional
+ * `visibleWhen` — used by the App shell (so the renderer has something
+ * real to prove itself against) and by the test suite. Not meant to ship
+ * as real product copy.
  */
 export const exampleFormSchema: FormSchema = {
   id: 'demo-form',
@@ -86,6 +88,38 @@ export const exampleFormSchema: FormSchema = {
           label: 'Short bio',
           placeholder: 'A sentence or two about you…',
           helpText: 'Shown on your public attendee profile.',
+        },
+        {
+          id: 'field-promo-code',
+          name: 'promoCode',
+          type: 'text',
+          label: 'Promo code',
+          placeholder: 'Optional',
+          helpText: 'Have a code? Enter it to unlock priority support below.',
+          // The validation engine's headline example: an async check
+          // against a (mocked) backend, debounced and race-safe. See
+          // features/validation/asyncValidator.ts.
+          validation: [
+            {
+              type: 'async',
+              endpoint: '/api/check-promo-code',
+              message: 'This code has already been used.',
+            },
+          ],
+        },
+        {
+          id: 'field-priority-support',
+          name: 'prioritySupport',
+          type: 'checkbox',
+          label: 'Enable priority support for this registration',
+          // Hidden until promoCode's async check resolves valid — Field
+          // B appearing based on an async result on Field A, not just a
+          // plain value comparison.
+          visibleWhen: {
+            fieldName: 'promoCode',
+            operator: 'asyncStatus',
+            value: 'valid',
+          },
         },
         {
           id: 'field-agree-to-terms',

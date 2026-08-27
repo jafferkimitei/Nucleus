@@ -54,14 +54,28 @@ export type ValidationRule =
   | { type: 'pattern'; value: string; message?: string }
   | { type: 'async'; endpoint: string; message?: string }
 
+/** The lifecycle of a field's `async` validation rule, if it has one. */
+export type AsyncValidationStatus = 'idle' | 'pending' | 'valid' | 'invalid'
+
 /**
  * A single condition gating a field's visibility, e.g. "show this field
- * only when `country` equals `US`". Phase 3 evaluates this against the
- * current form values on every change to the referenced field.
+ * only when `country` equals `US`" — or, via the `asyncStatus` operator,
+ * "show this field once `promoCode`'s async check comes back valid",
+ * the project brief's "async API check on Field A hiding Field B"
+ * example. Phase 3 evaluates this against the current form values (and,
+ * for `asyncStatus`, against each field's async validation status)
+ * whenever the referenced field changes.
  */
 export interface ConditionExpression {
   fieldName: string
-  operator: 'equals' | 'notEquals' | 'in' | 'notEmpty'
+  operator: 'equals' | 'notEquals' | 'in' | 'notEmpty' | 'asyncStatus'
+  /**
+   * `equals`/`notEquals` compare against a single FieldValue; `in`
+   * against an array of them; `notEmpty` ignores `value` entirely;
+   * `asyncStatus` compares against an AsyncValidationStatus — a plain
+   * string, so it's already covered by FieldValue's `string` branch
+   * rather than adding a redundant type here.
+   */
   value?: FieldValue | FieldValue[]
 }
 

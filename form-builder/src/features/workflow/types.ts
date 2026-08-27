@@ -1,4 +1,4 @@
-import type { FieldValue } from '@/types/schema'
+import type { AsyncValidationStatus, FieldValue } from '@/types/schema'
 
 /**
  * The state a form instance needs, independent of how it's stored. This
@@ -7,12 +7,23 @@ import type { FieldValue } from '@/types/schema'
 export interface FormControllerState {
   currentStepIndex: number
   values: Record<string, FieldValue>
-  /** Always `{}` here — Phase 3's validation engine is what populates it. */
+  /** A passing field's entry is `undefined` (never an empty string).
+   * Kept current for every field at all times — including ones the user
+   * hasn't touched yet — since it's what `goToStep` checks before
+   * advancing. See `maskUntouchedErrors` in `@/features/validation` for
+   * *displaying* only touched fields' errors, a separate,
+   * presentation-only concern. */
   errors: Record<string, string | undefined>
-  /** Which fields have been blurred at least once. */
+  /** Which fields have been blurred at least once, or force-touched by
+   * an attempted (and blocked) step advance. */
   touched: Record<string, boolean>
   /** Which fields currently differ from their schema `defaultValue`. */
   dirty: Record<string, boolean>
+  /** One entry per field that carries an `async` validation rule and has
+   * a non-empty value; absent otherwise. See createFormStore's
+   * `runValidation`/`scheduleAsyncValidation` for the debounce + race
+   * handling that keeps this current. */
+  asyncStatus: Record<string, AsyncValidationStatus>
   /** Every step index the user has visited, ascending. Always includes
    * `currentStepIndex`. Drives the "no skipping ahead" branching rule in
    * `goToStep` and lets the UI offer back-navigation to a past step. */
@@ -31,12 +42,16 @@ export interface FormControllerActions {
    * *workflow* engine rather than a linear stepper: any previously
    * visited step is always reachable, but a step more than one past the
    * furthest one visited is refused (a silent no-op) — the workflow
-   * can't be skipped ahead of, only revisited.
+   * can't be skipped ahead of, only revisited. Moving *forward* also
+   * validates every visible field on the current step first (Phase 3);
+   * a violation force-touches the offending fields (so their errors
+   * become visible) and refuses the jump, same as `goToNextStep`. Moving
+   * backward is never blocked by validation.
    */
   goToStep: (index: number) => void
   /** Returns the form to its initial state (step 0, schema defaults,
-   * cleared touched/dirty). Not wired to a Phase 1 equivalent — new in
-   * Phase 2, exposed for the demo's "Start over" affordance and for
+   * cleared touched/dirty/errors/asyncStatus, any in-flight async checks
+   * cancelled). Exposed for the demo's "Start over" affordance and for
    * Phase 4's builder preview panel. */
   reset: () => void
 }

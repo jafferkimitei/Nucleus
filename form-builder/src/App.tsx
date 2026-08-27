@@ -12,10 +12,11 @@ function App() {
         The form schema is data (see{' '}
         <code>features/form-renderer/exampleSchema.ts</code>) and this entire
         form is rendered from it. Nothing below is hand-authored JSX per field.
-        Step state, branching, and touched/dirty tracking are backed by a
-        Zustand store scoped to this form instance (
-        <code>features/workflow</code>) — click a visited step above the form to
-        jump back to it.
+        Step state, branching, and validation are backed by a Zustand store
+        scoped to this form instance (<code>features/workflow</code> +{' '}
+        <code>features/validation</code>) — click a visited step above the form
+        to jump back to it, or try entering &quot;USED&quot; in Promo code on
+        step 2 to see the async check fail.
       </p>
 
       <FormRenderer schema={exampleFormSchema} controller={controller} />
@@ -46,6 +47,10 @@ function App() {
           <div>
             <h4>dirty</h4>
             <pre>{JSON.stringify(controller.dirty, null, 2)}</pre>
+          </div>
+          <div>
+            <h4>asyncStatus</h4>
+            <pre>{JSON.stringify(controller.asyncStatus, null, 2)}</pre>
           </div>
         </div>
       </section>

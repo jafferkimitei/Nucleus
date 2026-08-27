@@ -30,7 +30,7 @@ function NumberFieldControlImpl({
   // input's displayed text is local state, and we only overwrite it (during
   // render, React's documented pattern for "adjust state when a prop
   // changes") when it stops agreeing with the authoritative `value` — e.g.
-  // an external reset — not on every keystroke's own round trip.
+  // an external reset - not on every keystroke's own round trip.
   if (parseRawNumber(rawText) !== value) {
     setRawText(toDisplayString(value))
   }

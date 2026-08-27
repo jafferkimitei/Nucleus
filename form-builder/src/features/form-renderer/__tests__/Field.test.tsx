@@ -10,7 +10,11 @@ import { Field } from '../Field'
 
 /** Minimal controlled harness so each test can assert round-tripped
  * values, not just that onChange was called with *something*. */
-function renderField(field: FieldSchema, initialValue: FieldValue = null) {
+function renderField(
+  field: FieldSchema,
+  initialValue: FieldValue = null,
+  checking = false,
+) {
   const onFieldChange = vi.fn()
 
   function Harness() {
@@ -20,6 +24,7 @@ function renderField(field: FieldSchema, initialValue: FieldValue = null) {
         field={field}
         value={value}
         error={undefined}
+        checking={checking}
         onFieldChange={(name, next) => {
           setValue(next)
           onFieldChange(name, next)
@@ -173,6 +178,7 @@ describe('Field', () => {
         field={{ id: 'f-name', name: 'name', type: 'text', label: 'Name' }}
         value={null}
         error="Name is required"
+        checking={false}
         onFieldChange={vi.fn()}
         onFieldBlur={undefined}
       />,

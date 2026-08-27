@@ -11,6 +11,11 @@ export interface FieldProps {
   field: FieldSchema
   value: FieldValue
   error: string | undefined
+  /** True while this field's `async` validation rule has an in-flight
+   * check (see createFormStore's `scheduleAsyncValidation`). Always
+   * `false` — a stable primitive — for a field with no async rule, so it
+   * never costs those fields a render. */
+  checking: boolean
   onFieldChange: (name: string, value: FieldValue) => void
   onFieldBlur: ((name: string) => void) | undefined
 }
@@ -22,18 +27,19 @@ export interface FieldProps {
  *
  * Performance note (see the Phase 5 case study for the measured version
  * of this claim): this component is memoized, and every prop it receives
- * is either a primitive (`value`, `error`) or referentially stable across
- * renders (`field` comes straight from the static FormSchema;
- * `onFieldChange`/`onFieldBlur` are expected to be stable callbacks from
- * the caller — see `@/features/workflow`'s useWorkflowFormController).
- * That combination is what makes
- * typing in one field not re-render its siblings: each Field's props
- * only change when that field's own value or error changes.
+ * is either a primitive (`value`, `error`, `checking`) or referentially
+ * stable across renders (`field` comes straight from the static
+ * FormSchema; `onFieldChange`/`onFieldBlur` are expected to be stable
+ * callbacks from the caller — see `@/features/workflow`'s
+ * useWorkflowFormController). That combination is what makes typing in
+ * one field not re-render its siblings: each Field's props only change
+ * when that field's own value, error, or checking status changes.
  */
 function FieldImpl({
   field,
   value,
   error,
+  checking,
   onFieldChange,
   onFieldBlur,
 }: FieldProps) {
@@ -69,6 +75,7 @@ function FieldImpl({
       required={isRequired(field)}
       helpText={field.helpText}
       error={error}
+      statusText={checking ? 'Checking…' : undefined}
     >
       {(describedBy) => (
         <Control

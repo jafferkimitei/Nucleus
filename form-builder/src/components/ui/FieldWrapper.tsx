@@ -7,6 +7,14 @@ export interface FieldWrapperProps {
   helpText: string | undefined
   error: string | undefined
   /**
+   * A transient, non-error status line (e.g. "Checking…" while a field's
+   * async validation rule is in flight). Rendered with `role="status"`
+   * (implicitly polite) rather than the error's `role="alert"` — it's
+   * informational, not something that should interrupt a screen reader
+   * mid-sentence.
+   */
+  statusText: string | undefined
+  /**
    * Render-prop so the control can wire `aria-describedby` to exactly the
    * help/error ids that ended up rendered, without recomputing them.
    */
@@ -24,6 +32,7 @@ function FieldWrapperImpl({
   required,
   helpText,
   error,
+  statusText,
   children,
 }: FieldWrapperProps) {
   const helpId = helpText ? `${fieldId}-help` : undefined
@@ -45,6 +54,11 @@ function FieldWrapperImpl({
       {helpText && (
         <p id={helpId} className="field__help">
           {helpText}
+        </p>
+      )}
+      {statusText && (
+        <p role="status" className="field__status">
+          {statusText}
         </p>
       )}
       {error && (
