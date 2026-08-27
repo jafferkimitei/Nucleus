@@ -3,17 +3,27 @@ import { expect, test, type Page } from '@playwright/test'
 /** Drags one element onto another via real, incremental mouse events —
  * `locator.dragTo()` alone is too instantaneous for @hello-pangea/dnd's
  * sensors to register as a genuine pick-up-and-move gesture in most
- * runs, so this does the down/move/move/up sequence by hand, with
- * pauses between each phase. The pauses aren't cosmetic: the library's
- * sensor lifts the item on its own requestAnimationFrame after
- * mousedown, and synthetic Playwright events can otherwise arrive
- * faster than that frame renders, so a move right after mousedown (or a
- * drop right after the final move) can be missed entirely. */
+ * runs, so this does the down/move/move/up sequence by hand.
+ *
+ * The critical checkpoint isn't a fixed pause — it's polling for the
+ * library's own confirmation that the lift actually registered.
+ * `snapshot.isDragging` toggles a `*--dragging` class on the dragged
+ * element while it's lifted (see FieldCard.tsx / FieldPalette.tsx), so
+ * waiting for that class beats a hardcoded `waitForTimeout`: the
+ * sensor's lift cycle runs on its own `requestAnimationFrame`, and how
+ * long that actually takes varies with how loaded the machine running
+ * the test is. A wait comfortable on a fast dev machine can be too
+ * short on a busier CI runner — this scales with however long the lift
+ * actually takes instead of guessing at a number, and fails fast with a
+ * clear "the drag never lifted" timeout rather than silently plowing
+ * through the rest of a doomed gesture. */
 async function dragOnto(
   page: Page,
   sourceSelector: string,
   targetSelector: string,
 ) {
+  const dragging = page.locator('[class*="--dragging"]').first()
+
   const source = page.locator(sourceSelector)
   const sourceBox = await source.boundingBox()
   if (!sourceBox) {
@@ -24,16 +34,15 @@ async function dragOnto(
 
   await page.mouse.move(startX, startY)
   await page.mouse.down()
-  await page.waitForTimeout(200)
   // A small nudge first so the drag is recognized as a drag rather than
   // a click.
   await page.mouse.move(startX + 10, startY + 10, { steps: 10 })
-  await page.waitForTimeout(200)
+  await dragging.waitFor({ state: 'visible', timeout: 5_000 })
 
-  // Re-measure the target after the nudge — lifting the source item can
-  // reflow the canvas (e.g. swapping out the empty-state placeholder),
-  // which would move the target's coordinates out from under a box
-  // captured before the drag started.
+  // Re-measure the target after the lift — it can reflow the canvas
+  // (e.g. swapping out the empty-state placeholder), which would move
+  // the target's coordinates out from under a box captured before the
+  // drag started.
   const target = page.locator(targetSelector)
   const targetBox = await target.boundingBox()
   if (!targetBox) {
@@ -52,11 +61,13 @@ async function dragOnto(
   const endY = movingDown ? targetBox.y + targetBox.height - 4 : targetBox.y + 4
 
   await page.mouse.move(endX, endY, { steps: 20 })
-  await page.waitForTimeout(200)
   await page.mouse.move(endX, endY, { steps: 5 }) // settle, lets rAF catch up
-  await page.waitForTimeout(200)
+  await page.waitForTimeout(150)
   await page.mouse.up()
-  await page.waitForTimeout(200)
+  // Confirm the drop actually finished processing (the dragging class
+  // cleared) before handing control back to the caller — otherwise its
+  // very next assertion can race a drop the library is still applying.
+  await dragging.waitFor({ state: 'hidden', timeout: 3_000 })
 }
 
 test.describe('drag-and-drop builder dashboard', () => {
@@ -149,7 +160,7 @@ test.describe('drag-and-drop builder dashboard', () => {
       await expect(page.getByLabel('Label', { exact: true })).toHaveValue(
         'Dropdown',
       )
-    }).toPass({ timeout: 20_000 })
+    }).toPass({ timeout: 30_000 })
 
     // The dropped field is now on the canvas (selected, per addField's
     // contract) and its default label appears in the live preview.
@@ -189,13 +200,22 @@ test.describe('drag-and-drop builder dashboard', () => {
         .locator('.builder-field-card__label')
         .allTextContents()
       expect(labelsNow[0]).toBe('Second')
-    }).toPass({ timeout: 20_000 })
+    }).toPass({ timeout: 30_000 })
 
     // The JSON view is the same schema object driving the canvas, not a
-    // separately-derived summary.
+    // separately-derived summary. Parsed and read structurally (steps[0]
+    // .fields[].label), not via a raw substring search — "First"/
+    // "Second" are field *labels* here, but a plain indexOf comparison
+    // would just as happily match either string anywhere else the JSON
+    // happened to contain them (a field's `name`, a `visibleWhen.value`,
+    // help text, ...), so this reads the actual field order instead.
     await page.getByRole('button', { name: 'Schema JSON' }).click()
     const json = await page.getByLabel('Form schema JSON').innerText()
-    expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
+    const schema = JSON.parse(json) as {
+      steps: { fields: { label: string }[] }[]
+    }
+    const labels = schema.steps[0]?.fields.map((f) => f.label)
+    expect(labels).toEqual(['Second', 'First'])
   })
 
   test('removing a field, removing a step, and changing a field type via the UI', async ({
