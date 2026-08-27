@@ -109,48 +109,58 @@ test.describe('drag-and-drop builder dashboard', () => {
     await expect(json).toContainText('"operator": "notEmpty"')
   })
 
-  test('dragging a field card reorders it within the canvas', async ({
+  test('dragging a field type from the palette onto the canvas adds it', async ({
     page,
   }) => {
-    await page.getByRole('button', { name: /^Text/ }).click()
-    await page.getByLabel('Label', { exact: true }).fill('First')
-    await page.getByRole('button', { name: /^Email/ }).click()
-    await page.getByLabel('Label', { exact: true }).fill('Second')
+    // Tall enough that the palette (8 field types) and the canvas panel
+    // sit in the same screenful side by side. A drag that has to scroll
+    // the page mid-gesture to bring its target into view is a real
+    // thing @hello-pangea/dnd supports, but simulating that scroll
+    // accurately with synthetic mouse events adds a lot of flakiness
+    // for no real coverage gain here — the default 720px viewport was
+    // clipping the canvas panel off the top of the screen by the time
+    // the palette's later entries scrolled into view. Scoped to this
+    // test only: the other two don't need the extra height, and it
+    // shouldn't change what they're exercising.
+    await page.setViewportSize({ width: 1280, height: 1400 })
 
-    // Drag operation with retry
+    await expect(
+      page.getByText('Drag a field type here, or click one in the palette.'),
+    ).toBeVisible()
+
+    // A pointer-simulated drag through @hello-pangea/dnd's mouse sensor
+    // is inherently a little racy in headless Chromium — the sensor's
+    // own lift/lower cycle runs on requestAnimationFrame timing that
+    // doesn't always keep pace with back-to-back synthetic events, even
+    // with the pauses inside dragOnto. `toPass` retries the whole
+    // gesture rather than fail the test outright on the first miss; the
+    // "still empty" guard keeps a retry from dropping a second field if
+    // the first attempt actually landed and only the assertion below it
+    // raced.
     await expect(async () => {
-      const labels = await page
-        .locator('.builder-field-card__label')
-        .allTextContents()
-      if (labels[0] !== 'Second') {
+      const stillEmpty = await page.locator('.builder-canvas__empty').count()
+      if (stillEmpty > 0) {
         await dragOnto(
           page,
-          '.builder-field-card__select:has-text("First")',
-          '.builder-field-card__select:has-text("Second")',
+          '.builder-palette__add:has-text("Dropdown")',
+          '.builder-canvas__list',
         )
       }
-      const labelsNow = await page
-        .locator('.builder-field-card__label')
-        .allTextContents()
-      expect(labelsNow[0]).toBe('Second')
+      await expect(page.getByLabel('Label', { exact: true })).toHaveValue(
+        'Dropdown',
+      )
     }).toPass({ timeout: 20_000 })
 
-    // Wrap JSON verification with toPass as well
-    await page.getByRole('button', { name: 'Schema JSON' }).click()
-    await expect(async () => {
-      const json = await page.getByLabel('Form schema JSON').innerText()
-      expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
-    }).toPass({ timeout: 20_000 })
+    // The dropped field is now on the canvas (selected, per addField's
+    // contract) and its default label appears in the live preview.
+    await expect(
+      page.getByText('Drag a field type here, or click one in the palette.'),
+    ).not.toBeVisible()
+    await expect(
+      page.locator('.builder-preview').getByLabel('Dropdown'),
+    ).toBeVisible()
   })
-  // A pointer-simulated drag through @hello-pangea/dnd's mouse sensor
-  // is inherently a little racy in headless Chromium — the sensor's
-  // own lift/lower cycle runs on requestAnimationFrame timing that
-  // doesn't always keep pace with back-to-back synthetic events, even
-  // with the pauses inside dragOnto. `toPass` retries the whole
-  // gesture rather than fail the test outright on the first miss; the
-  // "still empty" guard keeps a retry from dropping a second field if
-  // the first attempt actually landed and only the assertion below it
-  // raced.
+
   test('dragging a field card reorders it within the canvas', async ({
     page,
   }) => {
