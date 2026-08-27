@@ -75,6 +75,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      # playwright.config.ts's webServer runs `vite preview`, which serves
+      # an already-built dist/ rather than building one itself. Pull down
+      # the exact artifact the `build` job already produced instead of
+      # rebuilding — without this, dist/ doesn't exist, `vite preview`
+      # has nothing to serve, and webServer times out waiting on
+      # localhost:4173.
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: form-builder/dist
       - run: npx playwright install --with-deps
         working-directory: form-builder
       - run: npm run test:e2e --workspace=form-builder

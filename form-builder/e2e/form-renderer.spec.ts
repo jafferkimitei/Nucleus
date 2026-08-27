@@ -39,5 +39,36 @@ test.describe('metadata-driven form renderer', () => {
     await expect(debugPanel).toContainText('"role": "engineer"')
     await expect(debugPanel).toContainText('"contactMethod": "sms"')
     await expect(debugPanel).toContainText('"agreeToTerms": true')
+    await expect(debugPanel).toContainText('Dirty: yes')
+  })
+
+  test('the progress list gates step navigation and Start over resets everything', async ({
+    page,
+  }) => {
+    await page.goto('/')
+
+    const progress = page.getByRole('list', { name: 'Form steps' })
+
+    // "Preferences" hasn't been visited yet, so it isn't clickable — the
+    // workflow engine won't let you skip ahead of the step you're on.
+    await expect(
+      progress.getByRole('button', { name: 'Preferences' }),
+    ).toBeDisabled()
+
+    await page.getByLabel('Full name').fill('Ada Lovelace')
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect(page.getByRole('group', { name: 'Preferences' })).toBeVisible()
+
+    // Now that it's been visited, jumping back to "About you" via the
+    // progress list (not the Back button) should work and preserve data.
+    await progress.getByRole('button', { name: 'About you' }).click()
+    await expect(page.getByRole('group', { name: 'About you' })).toBeVisible()
+    await expect(page.getByLabel('Full name')).toHaveValue('Ada Lovelace')
+
+    // Start over clears the value and returns to step 1.
+    await page.getByRole('button', { name: 'Start over' }).click()
+    await expect(page.getByLabel('Full name')).toHaveValue('')
+    const debugPanel = page.getByRole('region', { name: 'Live form values' })
+    await expect(debugPanel).toContainText('Dirty: no')
   })
 })

@@ -2,11 +2,11 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { useWorkflowFormController } from '@/features/workflow'
 import type { FormSchema } from '@/types/schema'
 
 import { FormRenderer } from '../FormRenderer'
 import { fieldRenderCounts, resetFieldRenderCounts } from '../renderTracker'
-import { useLocalFormController } from '../useLocalFormController'
 
 /**
  * The performance claim from the project brief ("typing in one field does
@@ -41,7 +41,7 @@ describe('field render isolation', () => {
     }
 
     function DemoForm() {
-      const controller = useLocalFormController(schema)
+      const controller = useWorkflowFormController(schema)
       return <FormRenderer schema={schema} controller={controller} />
     }
 

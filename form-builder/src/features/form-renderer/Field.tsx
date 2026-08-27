@@ -25,7 +25,8 @@ export interface FieldProps {
  * is either a primitive (`value`, `error`) or referentially stable across
  * renders (`field` comes straight from the static FormSchema;
  * `onFieldChange`/`onFieldBlur` are expected to be stable callbacks from
- * the caller — see useFormController). That combination is what makes
+ * the caller — see `@/features/workflow`'s useWorkflowFormController).
+ * That combination is what makes
  * typing in one field not re-render its siblings: each Field's props
  * only change when that field's own value or error changes.
  */

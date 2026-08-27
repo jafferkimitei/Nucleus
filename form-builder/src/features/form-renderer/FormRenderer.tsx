@@ -1,11 +1,10 @@
 import { memo } from 'react'
 
 import { Button } from '@/components/ui/Button'
+import type { FormController } from '@/features/workflow'
 import type { FormSchema } from '@/types/schema'
 
 import { StepRenderer } from './StepRenderer'
-
-import type { FormController } from './useLocalFormController'
 
 export interface FormRendererProps {
   schema: FormSchema
@@ -15,8 +14,9 @@ export interface FormRendererProps {
 /**
  * The top-level "schema in, DOM out" component. Deliberately knows
  * nothing about *how* state is managed — it only calls the FormController
- * contract, so swapping useLocalFormController for the Zustand-backed
- * controller in Phase 2 is a one-line change at the call site, not a
+ * contract, so Phase 2 swapping the plain-useState stand-in for a
+ * Zustand-backed controller was a one-line change at the call site
+ * (`@/features/workflow` instead of `./useLocalFormController`), not a
  * rewrite of this component.
  */
 function FormRendererImpl({ schema, controller }: FormRendererProps) {
@@ -24,9 +24,12 @@ function FormRendererImpl({ schema, controller }: FormRendererProps) {
     currentStepIndex,
     values,
     errors,
+    visitedStepIndices,
     setFieldValue,
+    setFieldTouched,
     goToNextStep,
     goToPreviousStep,
+    goToStep,
   } = controller
   const step = schema.steps[currentStepIndex]
   const isFirstStep = currentStepIndex === 0
@@ -44,19 +47,29 @@ function FormRendererImpl({ schema, controller }: FormRendererProps) {
           <p className="form__description">{schema.description}</p>
         )}
         <ol className="form__progress" aria-label="Form steps">
-          {schema.steps.map((s, index) => (
-            <li
-              key={s.id}
-              aria-current={index === currentStepIndex ? 'step' : undefined}
-              className={
-                index === currentStepIndex
-                  ? 'form__progress-step form__progress-step--current'
-                  : 'form__progress-step'
-              }
-            >
-              {s.title}
-            </li>
-          ))}
+          {schema.steps.map((s, index) => {
+            const isCurrent = index === currentStepIndex
+            const isVisited = visitedStepIndices.includes(index)
+            return (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  aria-current={isCurrent ? 'step' : undefined}
+                  className={
+                    isCurrent
+                      ? 'form__progress-step form__progress-step--current'
+                      : 'form__progress-step'
+                  }
+                  disabled={!isVisited || isCurrent}
+                  onClick={() => {
+                    goToStep(index)
+                  }}
+                >
+                  {s.title}
+                </button>
+              </li>
+            )
+          })}
         </ol>
       </header>
 
@@ -65,7 +78,7 @@ function FormRendererImpl({ schema, controller }: FormRendererProps) {
         values={values}
         errors={errors}
         onFieldChange={setFieldValue}
-        onFieldBlur={undefined}
+        onFieldBlur={setFieldTouched}
       />
 
       <div className="form__actions">

@@ -2,10 +2,10 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
+import { useWorkflowFormController } from '@/features/workflow'
 import type { FormSchema } from '@/types/schema'
 
 import { FormRenderer } from '../FormRenderer'
-import { useLocalFormController } from '../useLocalFormController'
 
 const schema: FormSchema = {
   id: 'test-form',
@@ -25,7 +25,7 @@ const schema: FormSchema = {
 }
 
 function DemoForm() {
-  const controller = useLocalFormController(schema)
+  const controller = useWorkflowFormController(schema)
   return <FormRenderer schema={schema} controller={controller} />
 }
 
@@ -79,13 +79,41 @@ describe('FormRenderer', () => {
     render(<DemoForm />)
 
     expect(
-      within(progressList()).getByText('Step one').closest('li'),
+      within(progressList()).getByRole('button', { name: 'Step one' }),
     ).toHaveAttribute('aria-current', 'step')
 
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(
-      within(progressList()).getByText('Step two').closest('li'),
+      within(progressList()).getByRole('button', { name: 'Step two' }),
     ).toHaveAttribute('aria-current', 'step')
+  })
+
+  it('disables an unvisited step in the progress list', () => {
+    render(<DemoForm />)
+
+    expect(
+      within(progressList()).getByRole('button', { name: 'Step two' }),
+    ).toBeDisabled()
+  })
+
+  it('lets you jump back to a visited step from the progress list', async () => {
+    const user = userEvent.setup()
+    render(<DemoForm />)
+
+    await user.type(screen.getByLabelText('A'), 'hello')
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(
+      within(currentStepFieldset()).getByText('Step two'),
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(progressList()).getByRole('button', { name: 'Step one' }),
+    )
+
+    expect(
+      within(currentStepFieldset()).getByText('Step one'),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('A')).toHaveValue('hello')
   })
 })
