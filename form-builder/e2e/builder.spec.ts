@@ -110,47 +110,47 @@ test.describe('drag-and-drop builder dashboard', () => {
   })
 
   test('dragging a field card reorders it within the canvas', async ({
-  page,
-}) => {
-  await page.getByRole('button', { name: /^Text/ }).click()
-  await page.getByLabel('Label', { exact: true }).fill('First')
-  await page.getByRole('button', { name: /^Email/ }).click()
-  await page.getByLabel('Label', { exact: true }).fill('Second')
+    page,
+  }) => {
+    await page.getByRole('button', { name: /^Text/ }).click()
+    await page.getByLabel('Label', { exact: true }).fill('First')
+    await page.getByRole('button', { name: /^Email/ }).click()
+    await page.getByLabel('Label', { exact: true }).fill('Second')
 
-  // Drag operation with retry
-  await expect(async () => {
-    const labels = await page
-      .locator('.builder-field-card__label')
-      .allTextContents()
-    if (labels[0] !== 'Second') {
-      await dragOnto(
-        page,
-        '.builder-field-card__select:has-text("First")',
-        '.builder-field-card__select:has-text("Second")',
-      )
-    }
-    const labelsNow = await page
-      .locator('.builder-field-card__label')
-      .allTextContents()
-    expect(labelsNow[0]).toBe('Second')
-  }).toPass({ timeout: 20_000 })
+    // Drag operation with retry
+    await expect(async () => {
+      const labels = await page
+        .locator('.builder-field-card__label')
+        .allTextContents()
+      if (labels[0] !== 'Second') {
+        await dragOnto(
+          page,
+          '.builder-field-card__select:has-text("First")',
+          '.builder-field-card__select:has-text("Second")',
+        )
+      }
+      const labelsNow = await page
+        .locator('.builder-field-card__label')
+        .allTextContents()
+      expect(labelsNow[0]).toBe('Second')
+    }).toPass({ timeout: 20_000 })
 
-  // Wrap JSON verification with toPass as well
-  await page.getByRole('button', { name: 'Schema JSON' }).click()
-  await expect(async () => {
-    const json = await page.getByLabel('Form schema JSON').innerText()
-    expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
-  }).toPass({ timeout: 20_000 })
-})
-    // A pointer-simulated drag through @hello-pangea/dnd's mouse sensor
-    // is inherently a little racy in headless Chromium — the sensor's
-    // own lift/lower cycle runs on requestAnimationFrame timing that
-    // doesn't always keep pace with back-to-back synthetic events, even
-    // with the pauses inside dragOnto. `toPass` retries the whole
-    // gesture rather than fail the test outright on the first miss; the
-    // "still empty" guard keeps a retry from dropping a second field if
-    // the first attempt actually landed and only the assertion below it
-    // raced.
+    // Wrap JSON verification with toPass as well
+    await page.getByRole('button', { name: 'Schema JSON' }).click()
+    await expect(async () => {
+      const json = await page.getByLabel('Form schema JSON').innerText()
+      expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
+    }).toPass({ timeout: 20_000 })
+  })
+  // A pointer-simulated drag through @hello-pangea/dnd's mouse sensor
+  // is inherently a little racy in headless Chromium — the sensor's
+  // own lift/lower cycle runs on requestAnimationFrame timing that
+  // doesn't always keep pace with back-to-back synthetic events, even
+  // with the pauses inside dragOnto. `toPass` retries the whole
+  // gesture rather than fail the test outright on the first miss; the
+  // "still empty" guard keeps a retry from dropping a second field if
+  // the first attempt actually landed and only the assertion below it
+  // raced.
   test('dragging a field card reorders it within the canvas', async ({
     page,
   }) => {
