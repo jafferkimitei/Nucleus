@@ -2,12 +2,15 @@
 
 A configurable, metadata-driven, multi-step form builder: a drag-and-drop
 dashboard for building forms as data, plus the runtime that renders and
-validates them.
+validates them. Both halves consume the same `FormSchema` — the builder
+has no rendering logic of its own, and the runtime has no editing logic
+of its own; each is downstream of one shared contract.
 
-> **Status: Phase 6 — test coverage pass.** The architecture write-up
-> and diagrams called for by the project brief land in this README as
-> part of Phase 9's rewrite. The "trade-offs" case study starts below,
-> though — Phases 5 and 6 _are_ that case study.
+> **Status: complete.** All 9 phases below have shipped. This README is
+> that Phase 8 rewrite — an architecture write-up plus the case studies
+> written along the way for the three phases where a real trade-off
+> decision was actually made (the builder's dual drag/click affordance,
+> the Phase 5 performance pass, and the Phase 6 coverage pass).
 
 This project lives inside an npm-workspaces monorepo — see the
 [root README](../README.md) for the workspace layout. Commands below
@@ -22,11 +25,159 @@ also reachable from the repo root via `npm run <script> --workspace=form-builder
 4. ~~Validation engine (sync, cross-field, async conditional)~~
 5. ~~Drag-and-drop builder dashboard~~
 6. ~~Performance tuning pass~~
-7. ~~Test coverage (unit + integration + E2E)~~ (this phase)
-8. GitHub Actions CI (quality gate) + Vercel (build/deploy) — done, ahead of schedule
-9. Case-study README (this file, rewritten)
+7. ~~Test coverage (unit + integration + E2E)~~
+8. ~~GitHub Actions CI (quality gate) + Vercel (build/deploy)~~ — done, ahead of schedule
+9. ~~Case-study README (this file, rewritten)~~ (this phase)
 
-## Phase 5 case study: performance tuning
+## Architecture
+
+### The shared contract: `FormSchema`
+
+Everything in this project is downstream of one type, defined once in
+[`src/types/schema.ts`](./src/types/schema.ts):
+
+```
+FormSchema { id, title, steps: StepSchema[] }
+StepSchema { id, title, fields: FieldSchema[] }
+FieldSchema {
+  id, name, type, label, placeholder?, helpText?, defaultValue?,
+  options?,                 // required for select/radio
+  validation?: ValidationRule[],   // required / min / max / pattern / async
+  visibleWhen?: ConditionExpression, // gates rendering on another field's
+}                                    // value, or its async status
+```
+
+A field's `validation` and `visibleWhen` are _typed_ here but not
+_interpreted_ here — `features/validation` is the only code that
+evaluates them. That split is what let the builder (Phase 4) start
+authoring these before Phase 3's engine existed to run them, and it's
+what makes the two halves of this app genuinely independent rather than
+independent-in-name: neither one imports anything from the other.
+
+### Two modes, one schema, two independent stores
+
+```mermaid
+flowchart LR
+    subgraph Builder["Builder mode — features/builder"]
+        BP["BuilderPage"] --> CBS["createBuilderStore\n(Zustand)"]
+        CBS --> FP["FieldPalette"]
+        CBS --> SC["StepCanvas"]
+        CBS --> PI["PropertyInspector"]
+    end
+
+    CBS -- "add/remove/move/rename\nfields & steps" --> Schema[("FormSchema")]
+
+    subgraph Runtime["Runtime mode — features/form-renderer + workflow"]
+        UWC["useWorkflowFormController"] --> CFS["createFormStore\n(Zustand)"]
+        CFS --> FR["FormRenderer"] --> SR["StepRenderer"] --> FD["Field"]
+    end
+
+    Schema -- "read-only input" --> UWC
+    CBS -. "LivePreview mounts the\nreal Runtime, keyed on\nthe store's version" .-> UWC
+```
+
+`createBuilderStore` and `createFormStore` are deliberately two separate
+Zustand stores rather than one, because they answer two different
+questions about the same schema: the builder store asks "what does this
+form look like" (add a field, rename a step), and the workflow store
+asks "what has this one visitor typed so far" (values, touched, dirty,
+which step they're on). Sharing a store would mean either running a
+whole fill-session's worth of state through every edit in the builder,
+or vice versa — neither store needs to know the other exists, and
+neither ever imports from the other's module.
+
+`LivePreview` is the seam that proves this actually works end to end: it
+mounts the _real_ `FormRenderer` + `useWorkflowFormController` — not a
+mock — against the schema currently being edited, keyed on the builder
+store's `version` counter so every edit remounts a fresh fill session.
+(Editing the very field a live session was mid-fill on has no
+well-defined "patch it in place" behavior, so a remount is the
+deliberate choice, not an oversight — see [`LivePreview.tsx`](./src/features/builder/LivePreview.tsx).)
+
+### The validation pipeline
+
+The part of this project with the most actual engineering in it is
+`createFormStore`'s `runValidation` → `scheduleAsyncValidation` →
+`recomputeVisibilityCascade` chain — sync rules, a debounced/race-safe
+async check, and a visibility cascade that has to terminate even if a
+schema's `visibleWhen` conditions form a cycle:
+
+```mermaid
+flowchart TD
+    A["setFieldValue(name, value)"] --> B{"sync rules pass?\n(required/min/max/pattern,\ndeclaration order)"}
+    B -- "no" --> C["show the error,\ncancel any in-flight async check"]
+    B -- "yes" --> D{"field has an\nasync rule?"}
+    D -- "no" --> Z["done"]
+    D -- "yes" --> E["debounce 300ms\n(ASYNC_DEBOUNCE_MS)"]
+    E --> F["call asyncValidator(value, endpoint)"]
+    F --> G{"still the latest\nrequest for this field?"}
+    G -- "no — superseded\nby a newer edit" --> H["drop the stale result"]
+    G -- "yes" --> I["set asyncStatus: valid / invalid"]
+    I --> J["recomputeVisibilityCascade"]
+    J --> K{"a dependent field just\nbecame hidden?"}
+    K -- "yes" --> L["clear its value/error/touched/dirty,\nqueue *its* dependents too"]
+    L --> K
+    K -- "no more" --> Z
+```
+
+Two details worth calling out because they're the kind of thing that
+looks like over-engineering until you hit the case it's for:
+
+- **Race safety.** Each field's async check carries a monotonically
+  increasing request id (`asyncRequestIds`); a result only gets applied
+  if its id still matches the latest one issued for that field. Typing
+  `"PROMO1"` then `"PROMO2"` before the first check resolves means the
+  first response — whichever order the two network calls actually land
+  in — is silently discarded rather than briefly flashing a wrong
+  status.
+- **Cycle safety.** The cascade's `processed` set (a plain `Set<string>`
+  of field names already handled this pass) exists because
+  `visibleWhen` conditions can reference each other circularly — field A
+  hidden when B is empty, B hidden when A is empty — and nothing in the
+  schema's own type stops an author (human or imported JSON) from
+  writing that. Without the guard, clearing one field cascades to the
+  other, which cascades back to the first, forever. `createFormStore.validation.test.ts`
+  builds exactly that circular schema and asserts the cascade still
+  terminates — see the Phase 6 case study below for why that test didn't
+  exist until this project went looking for it.
+
+### A deliberate scope cut, noted rather than hidden
+
+`createBuilderStore.moveFieldToStep` — moving a field from one step to
+another — is implemented and unit-tested, but has no UI affordance.
+`BuilderPage` only ever mounts _one_ step's canvas at a time (the
+currently-selected tab), so there's no second drop target on screen to
+drag a field onto, and a cross-step move was judged lower priority than
+the phases that followed it. It's mentioned here rather than left
+silent because a portfolio project's case study should say what was cut
+and why, not just what shipped.
+
+## Case studies
+
+Three phases produced a real trade-off worth writing down — not "here's
+what I built" but "here's the decision, the alternative, and why this
+one won."
+
+### Phase 4: the builder's dual drag/click affordance
+
+`FieldPalette`'s entries are simultaneously a `@hello-pangea/dnd` drag
+source and a plain `<button onClick>` that does the same thing. Dragging
+is the interaction that makes a "drag-and-drop builder" look like one in
+a demo; it's also the one WCAG 2.5.7 (Dragging Movements) requires a
+single-pointer alternative to, because a drag gesture is unusable for
+anyone who can't perform a sustained pointer-drag. The click path isn't
+a degraded fallback bolted on for compliance — it's genuinely less
+friction for the repetitive case ("add five text fields"), which is why
+it's presented as an equal option (`Drag onto the canvas, or click to
+add.`) rather than a hidden accessibility escape hatch. `StepTabs`
+followed the same reasoning further: steps are reordered with ↑/↓
+buttons only, no drag at all, because a form's steps are few and never
+dragged _onto_ from anywhere else — a second `DragDropContext` would
+have added real complexity (nested drag contexts, another set of
+droppable ids) for an interaction two buttons already cover just as
+well.
+
+### Phase 5: performance tuning
 
 The brief for this phase is "make it faster," which only means something
 if there's a number attached. Two problems turned out to be real,
@@ -34,7 +185,7 @@ measured, and fixed; a third was investigated and turned out to already
 be a non-issue, which is worth writing down too — not every suspicious
 pattern is actually a bug.
 
-### 1. Code-splitting the two mutually-exclusive views
+#### 1. Code-splitting the two mutually-exclusive views
 
 `App.tsx` shows exactly one of `RuntimeDemo` or `BuilderPage` at a time,
 picked by a nav toggle that starts on `RuntimeDemo`. Both were plain
@@ -61,7 +212,7 @@ original bundle) never loads at all unless they click "Builder". The
 numbers above are straight from `npm run build`'s own output, not an
 estimate.
 
-### 2. A `memo` wrapper that wasn't doing anything
+#### 2. A `memo` wrapper that wasn't doing anything
 
 `FieldPalette`, `StepCanvas`, and `StepTabs` were all wrapped in
 `React.memo` from the moment they were written in Phase 4 — and it had
@@ -99,7 +250,7 @@ change — the visible field-card labels really do need to update — so
 there's no claim that panel goes to zero re-renders, only that it's no
 longer re-rendering for reasons unrelated to what's on screen.
 
-### 3. What turned out not to be a problem
+#### 3. What turned out not to be a problem
 
 `StepTabs` receives `steps={builder.schema.steps}`, and that array gets
 a brand-new reference on _every_ field edit (`updateField` rebuilds the
@@ -120,7 +271,7 @@ The form-renderer/workflow layer (Phases 1-3) needed no changes at all
 exactly why the builder's version of the same test lives right next to
 it now instead of being a one-off.
 
-## Phase 6 case study: test coverage
+### Phase 6: test coverage
 
 The brief for this phase is "test coverage (unit + integration + E2E)."
 The easy way to satisfy that is to chase a percentage; the useful way is
@@ -133,7 +284,7 @@ a real browser. Treating all three the same — either testing all of them
 by force, or ignoring all of them because "the number's fine" — would
 have been the wrong call either way.
 
-### Where coverage started
+#### Where coverage started
 
 | Metric     | Before |  After |
 | ---------- | -----: | -----: |
@@ -145,7 +296,7 @@ have been the wrong call either way.
 (The "before" numbers are the whole-suite baseline at the start of this
 phase, after Phase 5's own tests but before any Phase 6 gap-closing.)
 
-### What got closed, and why each one was worth writing
+#### What got closed, and why each one was worth writing
 
 - **`createBuilderStore.ts`** (98.77%/94.73%, up from ~91%/79%): two
   actions — `renameStep` and `clearSelection` — had _zero_ test
@@ -214,7 +365,7 @@ phase, after Phase 5's own tests but before any Phase 6 gap-closing.)
   reason to pay the drag simulation's flakiness tax for interactions
   that are plain button clicks).
 
-### What was left as an accepted gap, and why
+#### What was left as an accepted gap, and why
 
 A handful of branches stayed uncovered on purpose rather than by
 oversight:
@@ -257,7 +408,7 @@ them, so a normal future change doesn't fail CI over noise, while still
 locking in this phase's gains as a floor future work can't quietly
 regress under.
 
-### One thing this phase found along the way
+#### One thing this phase found along the way
 
 Not a coverage gap: running `tsc -b` as part of full CI (rather than
 relying on `vitest run` alone, which type-checks more leniently)
