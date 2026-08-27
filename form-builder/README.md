@@ -4,10 +4,10 @@ A configurable, metadata-driven, multi-step form builder: a drag-and-drop
 dashboard for building forms as data, plus the runtime that renders and
 validates them.
 
-> **Status: Phase 0 — project scaffold.** The architecture write-up,
+> **Status: Phase 1 — schema-driven renderer.** The architecture write-up,
 > diagrams, and "trade-offs" case study called for by the project brief
-> live in this README once the engine (Phases 1-6) exists to document. For
-> now, this is the setup guide.
+> land in this README once the rest of the engine (Phases 2-6) exists to
+> document. For now, this is the setup guide.
 
 This project lives inside an npm-workspaces monorepo — see the
 [root README](../README.md) for the workspace layout. Commands below
@@ -17,8 +17,7 @@ also reachable from the repo root via `npm run <script> --workspace=form-builder
 ## Roadmap
 
 1. ~~Project scaffold: strict TS, ESLint/Prettier, Vitest, Playwright, CI~~
-   (this phase)
-2. Metadata-driven form schema & renderer
+2. ~~Metadata-driven form schema & renderer~~ (this phase)
 3. State management & multi-step workflow engine
 4. Validation engine (sync, cross-field, async conditional)
 5. Drag-and-drop builder dashboard
@@ -67,16 +66,27 @@ npm run dev
 
 ```
 src/
-  app/                 App shell (added in Phase 2)
-  components/ui/       Shared, schema-agnostic UI primitives
+  components/ui/       Shared, schema-agnostic UI primitives (Button,
+                        TextInput, Select, RadioGroup, Checkbox,
+                        FieldWrapper — presentational only)
   features/
-    form-renderer/     Schema → DOM renderer (Phase 1)
+    form-renderer/     Schema → DOM renderer (Phase 1, done)
+      fieldRegistry.tsx    FieldType -> control component lookup table
+      Field.tsx            Per-field orchestrator (memoized)
+      StepRenderer.tsx      Renders one step's fields
+      FormRenderer.tsx      Top-level; takes a FormController, knows
+                             nothing about how state is managed
+      useLocalFormController.ts  Phase 1's plain-useState controller;
+                                  replaced by a Zustand-backed one with
+                                  the same shape in Phase 2
+      renderTracker.ts     Per-field render counter used only by the
+                            render-isolation test
+      fields/               One control per FieldType
     workflow/           Multi-step navigation + store (Phase 2)
     validation/         Sync/async/cross-field validation (Phase 3)
     builder/            Drag-and-drop builder dashboard (Phase 4)
-  store/               Zustand stores & selectors
-  lib/                 Framework-agnostic utilities
-  types/               Shared schema types
+  types/schema.ts       FormSchema/StepSchema/FieldSchema — the contract
+                        everything above renders from
   test/                Test setup
 e2e/                   Playwright specs
 vercel.json            Explicit build config for the Vercel deploy

@@ -1,12 +1,27 @@
+import {
+  exampleFormSchema,
+  FormRenderer,
+  useLocalFormController,
+} from '@/features/form-renderer'
+
 function App() {
+  const controller = useLocalFormController(exampleFormSchema)
+
   return (
     <main>
       <h1>Form &amp; Workflow Builder</h1>
-      <p>
-        Scaffold in progress — the schema-driven renderer, workflow engine,
-        validation layer, and drag-and-drop builder land in the phases that
-        follow. See the project README for the roadmap.
+      <p className="app-intro">
+        Phase 1: the form schema is data (see{' '}
+        <code>features/form-renderer/exampleSchema.ts</code>) and this entire
+        form is rendered from it. Nothing below is hand-authored JSX per field.
       </p>
+
+      <FormRenderer schema={exampleFormSchema} controller={controller} />
+
+      <section aria-label="Live form values" className="debug-panel">
+        <h3>Live values (debug)</h3>
+        <pre>{JSON.stringify(controller.values, null, 2)}</pre>
+      </section>
     </main>
   )
 }
