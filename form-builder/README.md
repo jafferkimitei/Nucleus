@@ -9,6 +9,11 @@ validates them.
 > live in this README once the engine (Phases 1-6) exists to document. For
 > now, this is the setup guide.
 
+This project lives inside an npm-workspaces monorepo — see the
+[root README](../README.md) for the workspace layout. Commands below
+assume you're in this directory (`form-builder/`); the same scripts are
+also reachable from the repo root via `npm run <script> --workspace=form-builder`.
+
 ## Roadmap
 
 1. ~~Project scaffold: strict TS, ESLint/Prettier, Vitest, Playwright, CI~~
@@ -19,7 +24,7 @@ validates them.
 5. Drag-and-drop builder dashboard
 6. Performance tuning pass
 7. Test coverage (unit + integration + E2E)
-8. GitHub Actions CI/CD → Netlify
+8. GitHub Actions CI (quality gate) + Vercel (build/deploy) — done, ahead of schedule
 9. Case-study README (this file, rewritten)
 
 ## Stack
@@ -74,8 +79,14 @@ src/
   types/               Shared schema types
   test/                Test setup
 e2e/                   Playwright specs
-.github/workflows/     CI (and, from Phase 7, CD to Netlify)
+vercel.json            Explicit build config for the Vercel deploy
 ```
+
+CI (`.github/workflows/ci.yml`) lives at the monorepo root — see the root
+README. Deployment is handled separately by Vercel's own GitHub
+integration (Root Directory = `form-builder`), not by CI; `vercel.json` in
+this folder pins the build command/output directory so that isn't left to
+framework auto-detection.
 
 ## Environment / tooling notes
 

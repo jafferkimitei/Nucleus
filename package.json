@@ -1,0 +1,22 @@
+{
+  "name": "form-builder-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "workspaces": ["form-builder"],
+  "scripts": {
+    "dev": "npm run dev --workspace=form-builder",
+    "build": "npm run build --workspace=form-builder",
+    "preview": "npm run preview --workspace=form-builder",
+    "lint": "npm run lint --workspace=form-builder",
+    "lint:fix": "npm run lint:fix --workspace=form-builder",
+    "format": "npm run format --workspace=form-builder",
+    "format:check": "npm run format:check --workspace=form-builder",
+    "typecheck": "npm run typecheck --workspace=form-builder",
+    "test": "npm run test --workspace=form-builder",
+    "test:watch": "npm run test:watch --workspace=form-builder",
+    "test:coverage": "npm run test:coverage --workspace=form-builder",
+    "test:e2e": "npm run test:e2e --workspace=form-builder",
+    "ci": "npm run ci --workspace=form-builder"
+  }
+}
