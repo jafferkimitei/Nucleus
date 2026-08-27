@@ -194,7 +194,11 @@ test.describe('drag-and-drop builder dashboard', () => {
     // The JSON view is the same schema object driving the canvas, not a
     // separately-derived summary.
     await page.getByRole('button', { name: 'Schema JSON' }).click()
-    const json = await page.getByLabel('Form schema JSON').innerText()
-    expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
+
+    // Wait for the JSON to reflect the reordered fields
+    await expect(async () => {
+      const json = await page.getByLabel('Form schema JSON').innerText()
+      expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
+    }).toPass({ timeout: 5_000 })
   })
 })

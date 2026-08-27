@@ -5,7 +5,7 @@ import { useWorkflowFormController } from '@/features/workflow'
 /**
  * The Phases 1-3 showcase: one hand-picked schema, rendered and run
  * entirely by the runtime (no builder involved). Split out of App.tsx
- * when Phase 4 added a second view — this component's content is
+ * when Phase 4 added a second view - this component's content is
  * unchanged from before that split, just relocated.
  */
 export function RuntimeDemo() {
@@ -19,7 +19,7 @@ export function RuntimeDemo() {
         form is rendered from it. Nothing below is hand-authored JSX per field.
         Step state, branching, and validation are backed by a Zustand store
         scoped to this form instance (<code>features/workflow</code> +{' '}
-        <code>features/validation</code>) — click a visited step above the form
+        <code>features/validation</code>) - click a visited step above the form
         to jump back to it, or try entering &quot;USED&quot; in Promo code on
         step 2 to see the async check fail.
       </p>

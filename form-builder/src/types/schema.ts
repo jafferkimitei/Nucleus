@@ -10,7 +10,7 @@
  * validation-specific code of its own.
  *
  * A field's `validation` and `visibleWhen` are typed here but not
- * interpreted by the renderer — the renderer only reads layout-relevant
+ * interpreted by the renderer - the renderer only reads layout-relevant
  * properties (type, label, options, ...). Phase 3 is what actually
  * evaluates these; defining their shape now means the builder (Phase 4)
  * can author them before Phase 3 exists to run them.
@@ -42,7 +42,7 @@ export interface SelectOption {
 /**
  * Sync validation rules, evaluated by Phase 3 in declaration order.
  * `async` is the hook for "Field B's validity depends on an API check
- * triggered by Field A" — Phase 3 debounces and races these, the schema
+ * triggered by Field A" - Phase 3 debounces and races these, the schema
  * just declares that one exists and where it calls out to.
  */
 export type ValidationRule =
@@ -59,7 +59,7 @@ export type AsyncValidationStatus = 'idle' | 'pending' | 'valid' | 'invalid'
 
 /**
  * A single condition gating a field's visibility, e.g. "show this field
- * only when `country` equals `US`" — or, via the `asyncStatus` operator,
+ * only when `country` equals `US`" - or, via the `asyncStatus` operator,
  * "show this field once `promoCode`'s async check comes back valid",
  * the project brief's "async API check on Field A hiding Field B"
  * example. Phase 3 evaluates this against the current form values (and,
@@ -72,7 +72,7 @@ export interface ConditionExpression {
   /**
    * `equals`/`notEquals` compare against a single FieldValue; `in`
    * against an array of them; `notEmpty` ignores `value` entirely;
-   * `asyncStatus` compares against an AsyncValidationStatus — a plain
+   * `asyncStatus` compares against an AsyncValidationStatus - a plain
    * string, so it's already covered by FieldValue's `string` branch
    * rather than adding a redundant type here.
    */

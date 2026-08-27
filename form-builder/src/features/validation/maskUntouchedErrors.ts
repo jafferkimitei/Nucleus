@@ -1,6 +1,6 @@
 /**
  * The store always keeps `errors` current for every field (that's what
- * gates step advancement — see createFormStore's `goToStep`), but showing
+ * gates step advancement - see createFormStore's `goToStep`), but showing
  * a red error under a field the user hasn't reached yet reads as the form
  * scolding them before they've done anything. FormRenderer masks errors
  * through this before handing them to StepRenderer: a field only

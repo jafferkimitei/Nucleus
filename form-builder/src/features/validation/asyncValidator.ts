@@ -10,7 +10,7 @@ export interface AsyncCheckResult {
  * value. A real deployment would `fetch(endpoint, ...)`; this project has
  * no backend to call, so `mockAsyncValidator` simulates the round trip
  * (latency + a small server-side "blocklist") instead. The orchestration
- * around this — debounce, in-flight cancellation, race-safety — is the
+ * around this - debounce, in-flight cancellation, race-safety - is the
  * actual thing Phase 3 needs to prove out (see createFormStore.ts), and
  * that logic is identical whether this function is a mock or a real
  * `fetch`. Swapping in a real backend later is a one-function change.
@@ -26,7 +26,7 @@ export type AsyncValidator = (
 export const MOCK_ASYNC_LATENCY_MS = 400
 
 /** Per-endpoint "already taken"/"invalid" values, checked
- * case-insensitively. Demo data only — see the module doc comment. */
+ * case-insensitively. Demo data only - see the module doc comment. */
 const BLOCKLISTS: Record<string, string[]> = {
   '/api/check-promo-code': ['USED', 'EXPIRED'],
 }

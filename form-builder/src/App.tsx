@@ -5,7 +5,7 @@ type View = 'demo' | 'builder'
 // Code-split, not eagerly imported: `view` starts on 'demo' and the two
 // views are mutually exclusive, so bundling BuilderPage's code into the
 // initial chunk buys nothing for the (likely more common) visitor who
-// only ever opens the demo — worse, it drags @hello-pangea/dnd along
+// only ever opens the demo - worse, it drags @hello-pangea/dnd along
 // with it, a dependency the demo view never touches. See the Phase 5
 // case study in the README for the measured bundle-size difference this
 // makes. RuntimeDemo is small enough on its own that splitting it out

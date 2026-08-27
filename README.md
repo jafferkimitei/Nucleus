@@ -22,7 +22,7 @@ docs, architecture, and (from Phase 8) the case-study write-up.
 ## Why a root workspace, and why now
 
 Only one project exists today, but `.github/workflows/` has to live at the
-actual repository root — moving it later, once there's more code and
+actual repository root - moving it later, once there's more code and
 history, is more disruptive than setting it up correctly now. Everything
 else (ESLint, Prettier, tsconfig, Vitest, Playwright) stays scoped inside
 `form-builder/` rather than shared from the root, since we don't yet know
@@ -37,7 +37,7 @@ Two independent systems, on purpose:
   and `unit-tests` run in parallel, `build` runs once both pass, and `e2e`
   runs Playwright against that build. It does **not** deploy anything.
   Set a GitHub branch protection rule on `main` requiring these jobs to
-  pass before merge — that's what actually keeps broken code off the
+  pass before merge - that's what actually keeps broken code off the
   branch Vercel deploys to production.
 - **Vercel** deploys, via its native GitHub integration: this repo's
   `jafferkimitei/Nucleus` is linked to the `form-builder` Vercel project
@@ -45,7 +45,7 @@ Two independent systems, on purpose:
   [`form-builder/vercel.json`](./form-builder/vercel.json) for the build
   config). Every PR gets its own preview deployment; every push to `main`
   deploys to production. Both happen independently of the GitHub Actions
-  run above — Vercel doesn't wait on CI, which is why the branch
+  run above - Vercel doesn't wait on CI, which is why the branch
   protection rule is what's actually load-bearing for keeping bad code
   off production, not the deploy mechanism itself.
 
@@ -54,7 +54,7 @@ deploy (build once, upload as an artifact, `vercel deploy` it) would mean
 maintaining Vercel's build behavior ourselves instead of letting Vercel's
 purpose-built build system do it. The cost is that a red CI run doesn't
 block a Vercel preview from existing (previews are meant to be seen even
-on in-progress PRs) — production is what branch protection actually
+on in-progress PRs) - production is what branch protection actually
 guards.
 
 ## Adding a new project later

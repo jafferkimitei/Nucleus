@@ -4,12 +4,12 @@ import type { FieldValue, FormSchema } from '@/types/schema'
 
 /**
  * The contract FormRenderer needs from "whatever is managing form state."
- * `useLocalFormController` below is Phase 1's implementation — plain
+ * `useLocalFormController` below is Phase 1's implementation - plain
  * `useState`, no persistence, no branching, no validation. Phase 2
  * replaces it with a Zustand-backed hook (multi-step branching,
  * dirty/touched tracking) that returns this exact same shape, so
  * FormRenderer/StepRenderer/Field don't change at all when that lands.
- * `errors` is always `{}` here — Phase 3 is what populates it.
+ * `errors` is always `{}` here - Phase 3 is what populates it.
  */
 export interface FormController {
   currentStepIndex: number

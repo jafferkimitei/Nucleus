@@ -34,7 +34,7 @@ export function evaluateCondition(
   }
 }
 
-/** Whether `field` should be rendered given the current form state — the
+/** Whether `field` should be rendered given the current form state - the
  * project brief's "async API check on Field A hiding Field B" runs
  * through here via the `asyncStatus` operator. */
 export function isFieldVisible(

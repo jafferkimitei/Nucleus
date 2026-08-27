@@ -4,7 +4,7 @@ export interface FieldIndex {
   /** Every field in the schema, keyed by its `name`. */
   fieldsByName: Map<string, FieldSchema>
   /** For a given field name, every field whose `visibleWhen.fieldName`
-   * points at it — i.e. "who needs re-checking when this field changes."
+   * points at it - i.e. "who needs re-checking when this field changes."
    * Built once per schema rather than re-scanned on every change, since
    * a schema-driven form's field count only grows with what the builder
    * (Phase 4) lets someone author, not with how often they type. */
