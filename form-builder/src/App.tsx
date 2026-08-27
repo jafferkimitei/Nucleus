@@ -1,59 +1,55 @@
-import { Button } from '@/components/ui/Button'
-import { exampleFormSchema, FormRenderer } from '@/features/form-renderer'
-import { useWorkflowFormController } from '@/features/workflow'
+import { lazy, Suspense, useState } from 'react'
+
+type View = 'demo' | 'builder'
+
+// Code-split, not eagerly imported: `view` starts on 'demo' and the two
+// views are mutually exclusive, so bundling BuilderPage's code into the
+// initial chunk buys nothing for the (likely more common) visitor who
+// only ever opens the demo — worse, it drags @hello-pangea/dnd along
+// with it, a dependency the demo view never touches. See the Phase 5
+// case study in the README for the measured bundle-size difference this
+// makes. RuntimeDemo is small enough on its own that splitting it out
+// is really about symmetry (and about not eagerly loading the builder
+// chunk while sitting on the demo view) rather than its own weight.
+const RuntimeDemo = lazy(() =>
+  import('./RuntimeDemo').then((m) => ({ default: m.RuntimeDemo })),
+)
+const BuilderPage = lazy(() =>
+  import('@/features/builder').then((m) => ({ default: m.BuilderPage })),
+)
 
 function App() {
-  const controller = useWorkflowFormController(exampleFormSchema)
+  const [view, setView] = useState<View>('demo')
 
   return (
     <main>
       <h1>Form &amp; Workflow Builder</h1>
-      <p className="app-intro">
-        The form schema is data (see{' '}
-        <code>features/form-renderer/exampleSchema.ts</code>) and this entire
-        form is rendered from it. Nothing below is hand-authored JSX per field.
-        Step state, branching, and validation are backed by a Zustand store
-        scoped to this form instance (<code>features/workflow</code> +{' '}
-        <code>features/validation</code>) — click a visited step above the form
-        to jump back to it, or try entering &quot;USED&quot; in Promo code on
-        step 2 to see the async check fail.
-      </p>
+      <nav className="app-nav" aria-label="View">
+        <button
+          type="button"
+          aria-pressed={view === 'demo'}
+          onClick={() => {
+            setView('demo')
+          }}
+        >
+          Runtime demo
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === 'builder'}
+          onClick={() => {
+            setView('builder')
+          }}
+        >
+          Builder
+        </button>
+      </nav>
 
-      <FormRenderer schema={exampleFormSchema} controller={controller} />
-
-      <section aria-label="Live form values" className="debug-panel">
-        <h3>Live values (debug)</h3>
-        <p className="debug-panel__summary">
-          Dirty: {controller.isDirty ? 'yes' : 'no'} · Visited steps:{' '}
-          {controller.visitedStepIndices.map((i) => i + 1).join(', ')}
-          <Button
-            type="button"
-            variant="secondary"
-            className="debug-panel__reset"
-            onClick={controller.reset}
-          >
-            Start over
-          </Button>
-        </p>
-        <div className="debug-panel__grid">
-          <div>
-            <h4>values</h4>
-            <pre>{JSON.stringify(controller.values, null, 2)}</pre>
-          </div>
-          <div>
-            <h4>touched</h4>
-            <pre>{JSON.stringify(controller.touched, null, 2)}</pre>
-          </div>
-          <div>
-            <h4>dirty</h4>
-            <pre>{JSON.stringify(controller.dirty, null, 2)}</pre>
-          </div>
-          <div>
-            <h4>asyncStatus</h4>
-            <pre>{JSON.stringify(controller.asyncStatus, null, 2)}</pre>
-          </div>
-        </div>
-      </section>
+      <div className={view === 'builder' ? 'page page--wide' : 'page'}>
+        <Suspense fallback={<p className="page__loading">Loading…</p>}>
+          {view === 'demo' ? <RuntimeDemo /> : <BuilderPage />}
+        </Suspense>
+      </div>
     </main>
   )
 }
