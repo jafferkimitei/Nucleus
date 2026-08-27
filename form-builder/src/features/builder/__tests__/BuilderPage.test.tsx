@@ -127,6 +127,45 @@ describe('BuilderPage', () => {
     expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
   })
 
+  it('moving a field up in the canvas reorders it in the live preview', async () => {
+    const user = userEvent.setup()
+    render(<BuilderPage />)
+    await user.click(screen.getByRole('button', { name: /^Text/ })) // field_1
+    await user.clear(screen.getByLabelText('Label'))
+    await user.type(screen.getByLabelText('Label'), 'First')
+    await user.click(screen.getByRole('button', { name: /^Email/ })) // field_2
+    await user.clear(screen.getByLabelText('Label'))
+    await user.type(screen.getByLabelText('Label'), 'Second')
+
+    // "Second" is at index 1 (the one just added, and selected); move it
+    // up above "First" — the counterpart to the "move down" test above.
+    await user.click(screen.getByRole('button', { name: 'Move Second up' }))
+
+    await user.click(screen.getByRole('button', { name: 'Schema JSON' }))
+    const json = screen.getByLabelText('Form schema JSON').textContent
+    expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
+  })
+
+  it('clicking an unselected field card in the canvas re-selects it for editing', async () => {
+    const user = userEvent.setup()
+    render(<BuilderPage />)
+    await user.click(screen.getByRole('button', { name: /^Text/ })) // field_1
+    await user.clear(screen.getByLabelText('Label'))
+    await user.type(screen.getByLabelText('Label'), 'First')
+    await user.click(screen.getByRole('button', { name: /^Email/ })) // field_2, now selected
+    await user.clear(screen.getByLabelText('Label'))
+    await user.type(screen.getByLabelText('Label'), 'Second')
+
+    // The inspector is currently editing "Second" (field_2). Click
+    // "First"'s own card in the canvas — not the palette — to switch
+    // the inspector back to it.
+    await user.click(
+      screen.getByRole('button', { name: /^First/, pressed: false }),
+    )
+
+    expect(screen.getByLabelText('Label', { exact: true })).toHaveValue('First')
+  })
+
   it('adding a step and switching to it shows its own (empty) canvas', async () => {
     const user = userEvent.setup()
     render(<BuilderPage />)
@@ -200,6 +239,23 @@ describe('BuilderPage', () => {
     const stepTabs = screen.getByRole('list', { name: 'Builder steps' })
     const tabs = within(stepTabs).getAllByRole('button', { name: /^Step \d$/ })
     expect(tabs.map((t) => t.textContent)).toEqual(['Step 2', 'Step 1'])
+  })
+
+  it('moving a step back earlier reorders it in the step tabs', async () => {
+    const user = userEvent.setup()
+    render(<BuilderPage />)
+    await user.click(screen.getByRole('button', { name: 'Add step' }))
+    await user.click(screen.getByRole('button', { name: 'Move Step 1 later' }))
+    // Tabs are now [Step 2, Step 1] — move the second tab (originally
+    // Step 1) back earlier to exercise the ↑ button, the counterpart of
+    // the ↓ button the previous test already covers.
+    await user.click(
+      screen.getByRole('button', { name: 'Move Step 1 earlier' }),
+    )
+
+    const stepTabs = screen.getByRole('list', { name: 'Builder steps' })
+    const tabs = within(stepTabs).getAllByRole('button', { name: /^Step \d$/ })
+    expect(tabs.map((t) => t.textContent)).toEqual(['Step 1', 'Step 2'])
   })
 
   it('removing a non-last step drops it from the tabs', async () => {

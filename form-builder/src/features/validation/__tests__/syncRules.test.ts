@@ -39,6 +39,7 @@ describe('validateSyncRules', () => {
     expect(validateSyncRules('abcd', maxRules)).toBe(
       'Must be at most 3 characters.',
     )
+    expect(validateSyncRules('abc', maxRules)).toBeUndefined()
   })
 
   it('enforces min/max on numbers only', () => {
@@ -49,6 +50,7 @@ describe('validateSyncRules', () => {
       'Must be at most 5.',
     )
     expect(validateSyncRules(5, [{ type: 'min', value: 5 }])).toBeUndefined()
+    expect(validateSyncRules(5, [{ type: 'max', value: 5 }])).toBeUndefined()
   })
 
   it('enforces pattern on non-empty strings only', () => {
@@ -58,6 +60,13 @@ describe('validateSyncRules', () => {
     expect(validateSyncRules('12a', rules)).toBe('Digits only.')
     expect(validateSyncRules('123', rules)).toBeUndefined()
     expect(validateSyncRules('', rules)).toBeUndefined() // empty is required's job, not pattern's
+  })
+
+  it('falls back to a default message when a pattern rule has none', () => {
+    const rules: ValidationRule[] = [{ type: 'pattern', value: '^[0-9]+$' }]
+    expect(validateSyncRules('abc', rules)).toBe(
+      'This value is not in the expected format.',
+    )
   })
 
   it('skips async rules entirely — that pipeline runs separately', () => {

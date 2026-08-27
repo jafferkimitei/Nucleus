@@ -1,8 +1,9 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { useWorkflowFormController } from '@/features/workflow'
+import type { FormController } from '@/features/workflow'
 import type { FormSchema } from '@/types/schema'
 
 import { FormRenderer } from '../FormRenderer'
@@ -115,5 +116,34 @@ describe('FormRenderer', () => {
       within(currentStepFieldset()).getByText('Step one'),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('A')).toHaveValue('hello')
+  })
+
+  it('renders nothing rather than crashing when currentStepIndex has no matching step', () => {
+    // Defensive guard: a hand-rolled or corrupted controller state (e.g.
+    // a step removed from the schema after the controller was created)
+    // could point currentStepIndex past schema.steps — this shouldn't
+    // throw, just render nothing.
+    const controller: FormController = {
+      currentStepIndex: 5,
+      values: {},
+      errors: {},
+      touched: {},
+      dirty: {},
+      asyncStatus: {},
+      visitedStepIndices: [0],
+      isDirty: false,
+      setFieldValue: vi.fn(),
+      setFieldTouched: vi.fn(),
+      goToNextStep: vi.fn(),
+      goToPreviousStep: vi.fn(),
+      goToStep: vi.fn(),
+      reset: vi.fn(),
+    }
+
+    const { container } = render(
+      <FormRenderer schema={schema} controller={controller} />,
+    )
+
+    expect(container).toBeEmptyDOMElement()
   })
 })

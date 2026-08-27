@@ -194,11 +194,50 @@ test.describe('drag-and-drop builder dashboard', () => {
     // The JSON view is the same schema object driving the canvas, not a
     // separately-derived summary.
     await page.getByRole('button', { name: 'Schema JSON' }).click()
+    const json = await page.getByLabel('Form schema JSON').innerText()
+    expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
+  })
 
-    // Wait for the JSON to reflect the reordered fields
-    await expect(async () => {
-      const json = await page.getByLabel('Form schema JSON').innerText()
-      expect(json.indexOf('"Second"')).toBeLessThan(json.indexOf('"First"'))
-    }).toPass({ timeout: 5_000 })
+  test('removing a field, removing a step, and changing a field type via the UI', async ({
+    page,
+  }) => {
+    const preview = page.locator('.builder-preview')
+
+    // --- change type: click-add a text field, switch it to select, and
+    // confirm the live preview swaps from a text input to a dropdown ---
+    await page.getByRole('button', { name: /^Text/ }).click()
+    await page.getByLabel('Label', { exact: true }).fill('Role')
+    await expect(preview.getByLabel('Role')).toHaveJSProperty(
+      'tagName',
+      'INPUT',
+    )
+
+    await page.getByRole('combobox', { name: 'Type' }).selectOption('select')
+
+    await expect(preview.getByLabel('Role')).toHaveJSProperty(
+      'tagName',
+      'SELECT',
+    )
+
+    // --- remove field: the field just edited comes off the canvas, and
+    // out of the live preview, entirely ---
+    await page.getByRole('button', { name: 'Remove Role' }).click()
+    await expect(preview.getByLabel('Role')).not.toBeVisible()
+    await expect(
+      page.getByText('Drag a field type here, or click one in the palette.'),
+    ).toBeVisible()
+
+    // --- remove step: add a second step, then remove it via its own tab
+    // — the tabs list drops back to just the first step ---
+    await page.getByRole('button', { name: 'Add step' }).click()
+    await expect(
+      page.getByRole('button', { name: 'Remove Step 2' }),
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: 'Remove Step 2' }).click()
+
+    await expect(
+      page.getByRole('button', { name: 'Step 2', exact: true }),
+    ).not.toBeVisible()
   })
 })

@@ -105,6 +105,16 @@ describe('createFormStore', () => {
     expect(store.getState().visitedStepIndices).toEqual([0, 1, 2])
   })
 
+  it('setFieldValue on a name absent from the schema does not throw (runValidation guard)', () => {
+    const store = createFormStore(schema)
+
+    expect(() => {
+      store.getState().setFieldValue('not-a-real-field', 'x')
+    }).not.toThrow()
+    expect(store.getState().values['not-a-real-field']).toBe('x')
+    expect(store.getState().errors['not-a-real-field']).toBeUndefined()
+  })
+
   it('reset restores initial state after values, touched, dirty, and step have all changed', () => {
     const store = createFormStore(schema)
 

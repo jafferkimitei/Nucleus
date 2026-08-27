@@ -29,11 +29,19 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/test/**',
       ],
+      // Raised in Phase 6 (test coverage pass) from the original
+      // 80/75/80/80 floor once the gap audit brought the real numbers to
+      // ~98/93/99/98 — see the README's Phase 6 case study for what
+      // closed and what was deliberately left as an accepted gap
+      // (defensive/unreachable branches, DnD-only styling, and code the
+      // Playwright suite already exercises end-to-end). Set a few points
+      // below the actual numbers, not equal to them, so a normal future
+      // change doesn't fail CI over noise.
       thresholds: {
-        statements: 80,
-        branches: 75,
-        functions: 80,
-        lines: 80,
+        statements: 95,
+        branches: 90,
+        functions: 95,
+        lines: 95,
       },
     },
   },

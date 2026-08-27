@@ -4,12 +4,12 @@ A configurable, metadata-driven, multi-step form builder: a drag-and-drop
 dashboard for building forms as data, plus the runtime that renders and
 validates them.
 
-> **Status: Phase 5 - performance tuning pass.** The architecture
-> write-up and diagrams called for by the project brief land in this
-> README once Phase 6 exists to document too. The "trade-offs" case
-> study starts below, though - Phase 5 _is_ that case study.
+> **Status: Phase 6 — test coverage pass.** The architecture write-up
+> and diagrams called for by the project brief land in this README as
+> part of Phase 9's rewrite. The "trade-offs" case study starts below,
+> though — Phases 5 and 6 _are_ that case study.
 
-This project lives inside an npm-workspaces monorepo - see the
+This project lives inside an npm-workspaces monorepo — see the
 [root README](../README.md) for the workspace layout. Commands below
 assume you're in this directory (`form-builder/`); the same scripts are
 also reachable from the repo root via `npm run <script> --workspace=form-builder`.
@@ -21,9 +21,9 @@ also reachable from the repo root via `npm run <script> --workspace=form-builder
 3. ~~State management & multi-step workflow engine~~
 4. ~~Validation engine (sync, cross-field, async conditional)~~
 5. ~~Drag-and-drop builder dashboard~~
-6. ~~Performance tuning pass~~ (this phase)
-7. Test coverage (unit + integration + E2E)
-8. GitHub Actions CI (quality gate) + Vercel (build/deploy) - done, ahead of schedule
+6. ~~Performance tuning pass~~
+7. ~~Test coverage (unit + integration + E2E)~~ (this phase)
+8. GitHub Actions CI (quality gate) + Vercel (build/deploy) — done, ahead of schedule
 9. Case-study README (this file, rewritten)
 
 ## Phase 5 case study: performance tuning
@@ -31,15 +31,15 @@ also reachable from the repo root via `npm run <script> --workspace=form-builder
 The brief for this phase is "make it faster," which only means something
 if there's a number attached. Two problems turned out to be real,
 measured, and fixed; a third was investigated and turned out to already
-be a non-issue, which is worth writing down too - not every suspicious
+be a non-issue, which is worth writing down too — not every suspicious
 pattern is actually a bug.
 
 ### 1. Code-splitting the two mutually-exclusive views
 
 `App.tsx` shows exactly one of `RuntimeDemo` or `BuilderPage` at a time,
 picked by a nav toggle that starts on `RuntimeDemo`. Both were plain
-imports, so both - and everything they pull in, including
-`@hello-pangea/dnd`, which only `BuilderPage` ever touches - shipped in
+imports, so both — and everything they pull in, including
+`@hello-pangea/dnd`, which only `BuilderPage` ever touches — shipped in
 the one bundle every visitor downloaded before either view had rendered
 a single node.
 
@@ -55,17 +55,16 @@ build into four chunks instead of one:
 
 Before: one 322.27 kB / 98.59 kB gzip bundle, always. After: a visitor
 who never opens the builder downloads `index` + `RuntimeDemo` +
-`workflow` - about 209.5 kB / 66.7 kB gzip, a ~35% raw / ~32% gzip cut
-
-- and the `@hello-pangea/dnd`-carrying `builder` chunk (a third of the
-  original bundle) never loads at all unless they click "Builder". The
-  numbers above are straight from `npm run build`'s own output, not an
-  estimate.
+`workflow` — about 209.5 kB / 66.7 kB gzip, a ~35% raw / ~32% gzip cut
+— and the `@hello-pangea/dnd`-carrying `builder` chunk (a third of the
+original bundle) never loads at all unless they click "Builder". The
+numbers above are straight from `npm run build`'s own output, not an
+estimate.
 
 ### 2. A `memo` wrapper that wasn't doing anything
 
 `FieldPalette`, `StepCanvas`, and `StepTabs` were all wrapped in
-`React.memo` from the moment they were written in Phase 4 - and it had
+`React.memo` from the moment they were written in Phase 4 — and it had
 no effect, because `BuilderPage` passed each of them a brand-new arrow
 function as a prop on every render. `memo` bails out of a re-render only
 when every prop is reference-equal to last time; a fresh function
@@ -73,30 +72,30 @@ identity fails that check regardless of what the function does, so the
 wrapping was pure overhead (an extra comparison that always failed)
 rather than the optimization it looked like.
 
-The concrete cost: `FieldPalette` carries no data props at all - only a
-callback - so it should be able to skip re-rendering (and, since each of
+The concrete cost: `FieldPalette` carries no data props at all — only a
+callback — so it should be able to skip re-rendering (and, since each of
 its 8 entries is a `@hello-pangea/dnd` `Draggable`, skip re-registering
 8 drag handles) for almost any state change elsewhere in the builder.
 Instead it re-rendered on _every_ keystroke anywhere, including typing
-into a field's label or the form's title - edits with no possible effect
+into a field's label or the form's title — edits with no possible effect
 on what the palette shows.
 
 The fix was mechanical: `BuilderPage`'s handlers now go through
 `useCallback`, keyed on the active step id and the specific store
-action(s) each one calls (both stable - see `createBuilderStore`'s doc
+action(s) each one calls (both stable — see `createBuilderStore`'s doc
 comment on why store actions don't change identity, and
 `setFormMeta`/`updateField`'s structural sharing on why editing a title
 or a field leaves _other_ steps' object references untouched). This is
 checked directly, not taken on faith:
 `src/features/builder/__tests__/renderIsolation.test.tsx` renders the
 builder, adds a field, types into its label, types into the form title,
-and asserts `FieldPalette`'s render count stays at 1 throughout - the
+and asserts `FieldPalette`'s render count stays at 1 throughout — the
 same "assert on a render counter, not DOM behavior" approach
 `form-renderer/renderTracker.ts` already used for the Phase 1-3 render-
 isolation claim.
 
 `StepCanvas` legitimately re-renders while its own step's fields
-change - the visible field-card labels really do need to update - so
+change — the visible field-card labels really do need to update — so
 there's no claim that panel goes to zero re-renders, only that it's no
 longer re-rendering for reasons unrelated to what's on screen.
 
@@ -105,27 +104,177 @@ longer re-rendering for reasons unrelated to what's on screen.
 `StepTabs` receives `steps={builder.schema.steps}`, and that array gets
 a brand-new reference on _every_ field edit (`updateField` rebuilds the
 top-level `steps` array via `.map`, even when only one field on one
-step actually changed) - so `StepTabs` re-renders on every keystroke
+step actually changed) — so `StepTabs` re-renders on every keystroke
 too, `memo` or not, and fixing that for real would mean a custom prop
 comparator that diffs step id/title instead of trusting array identity.
 That was deliberately left alone: `StepTabs` renders a handful of
 buttons with no drag registration and no per-item work worth avoiding,
-so the render is cheap regardless of whether it was "necessary" -
+so the render is cheap regardless of whether it was "necessary" —
 adding a custom comparator here would be complexity spent on a cost
 that was never actually measurable.
 
 The form-renderer/workflow layer (Phases 1-3) needed no changes at all
+— it already followed the discipline this phase applied to the builder
+(`Field.tsx` and `StepRenderer.tsx`'s doc comments describe it, and
+`renderIsolation.test.tsx` in that feature already checks it), which is
+exactly why the builder's version of the same test lives right next to
+it now instead of being a one-off.
 
-- it already followed the discipline this phase applied to the builder
-  (`Field.tsx` and `StepRenderer.tsx`'s doc comments describe it, and
-  `renderIsolation.test.tsx` in that feature already checks it), which is
-  exactly why the builder's version of the same test lives right next to
-  it now instead of being a one-off.
+## Phase 6 case study: test coverage
+
+The brief for this phase is "test coverage (unit + integration + E2E)."
+The easy way to satisfy that is to chase a percentage; the useful way is
+to read what each uncovered line and branch actually _is_ before writing
+a test for it, because a lot of "uncovered" code turns out to be one of
+three very different things: a real behavioral gap worth closing, a
+defensive guard that's structurally unreachable through the code's own
+public contract, or a styling/DnD branch Playwright already exercises in
+a real browser. Treating all three the same — either testing all of them
+by force, or ignoring all of them because "the number's fine" — would
+have been the wrong call either way.
+
+### Where coverage started
+
+| Metric     | Before |  After |
+| ---------- | -----: | -----: |
+| Statements |  91.4% | 98.35% |
+| Branches   |  79.1% |  93.4% |
+| Functions  |  94.3% | 99.62% |
+| Lines      |  90.6% | 98.25% |
+
+(The "before" numbers are the whole-suite baseline at the start of this
+phase, after Phase 5's own tests but before any Phase 6 gap-closing.)
+
+### What got closed, and why each one was worth writing
+
+- **`createBuilderStore.ts`** (98.77%/94.73%, up from ~91%/79%): two
+  actions — `renameStep` and `clearSelection` — had _zero_ test
+  coverage and no UI affordance either, so nothing else in the suite
+  exercised them by accident. Also closed: every guard branch across
+  `addField`/`removeField`/`moveField`/`moveStep`/`moveFieldToStep`/
+  `renameField`/`changeFieldType` for an invalid id, and the
+  structural-sharing passthrough branches (editing a field in step A
+  must leave step B's own field array _and_ its objects untouched —
+  each of those got an explicit assertion, not just an implicit one).
+- **`createFormStore.ts`** (100%/97.22%, up from ~92%/89%): the
+  standout here is a genuine correctness guard, not busywork —
+  `recomputeVisibilityCascade`'s `processed` set exists specifically to
+  stop a circular `visibleWhen` dependency (field A hidden when B is
+  empty, B hidden when A is empty) from looping forever. Nothing in the
+  suite had ever constructed that scenario, so the guard had never
+  actually been exercised; the new test builds exactly that circular
+  schema and asserts the cascade still terminates. Also closed: the
+  empty-value branch of `scheduleAsyncValidation` cancelling a still-
+  pending debounce timer, the default-message fallback when an async
+  check resolves invalid with no `message`, the `touched` ternary's
+  already-touched branch, and `runValidation`'s guard against a field
+  name absent from the schema.
+- **`Field.tsx` / field controls** (100%/95.45%): clearing a text,
+  textarea, or select field back to empty was only ever tested as
+  "type a value in" — never "clear it back out" — which matters because
+  the contract is specifically "empty reports `null`, not `''`" (that's
+  what makes a `notEmpty` visibility condition or a `required` rule
+  behave correctly). Also closed: a select/radio field rendered with no
+  `options` key at all (an omitted array, not an empty one — a
+  hand-authored or imported schema might not seed it), the checkbox
+  variant's own `aria-describedby` wiring to its error id (separate
+  code path from `FieldWrapper`'s, since checkboxes skip that chrome
+  entirely), and the "Checking…" status text actually rendering while
+  an async rule is in flight.
+- **`FormRenderer.tsx`**: the Next button's disabled "Checking…" label
+  while an async check is pending had no direct test — every existing
+  async test asserted on `asyncStatus` in the store, not on what the
+  button actually displays.
+- **`StepTabs.tsx` / `BuilderPage.tsx`**: `BuilderPage.test.tsx` had a
+  "move step later" (↓) test but no "move step earlier" (↑) counterpart.
+- **`syncRules.ts`**: `maxLength` and `max` each only had their
+  _violation_ branch tested, never the passing case; `pattern`'s
+  default-message fallback (no rule-supplied `message`) was untested
+  too — the same shape of gap in three different rules.
+- **`asyncValidator.ts`**: a non-string value reaching the mock
+  validator (defensive — async rules only ever attach to text-like
+  fields in practice) had no test confirming it resolves valid rather
+  than throwing.
+- **`fieldTypeMeta.ts`**: `labelForFieldType`'s fallback to the raw
+  type string, for a type with no registered label — unreachable
+  through the `FieldType` union at the type checker, but a schema
+  loaded from disk isn't type-checked at runtime, so an unknown future
+  type string reaching this function is a real (if rare) case.
+- **`renderTracker.ts`** (both copies): the reset helpers were called
+  in every test file's `beforeEach`, but always against an
+  already-empty counter object on the first test, so the actual
+  "delete stale keys" loop body had never run. Each file's suite grew a
+  second test that asserts the reset actually clears counts a prior
+  test left behind — a real regression check, not just a coverage
+  formality.
+- **E2E**: `e2e/builder.spec.ts` had drag/reorder and click-to-add
+  covered, but nothing exercised removing a field, removing a step, or
+  changing a field's type through the real browser UI. Added one test
+  covering all three (deliberately click-driven, not drag-driven — no
+  reason to pay the drag simulation's flakiness tax for interactions
+  that are plain button clicks).
+
+### What was left as an accepted gap, and why
+
+A handful of branches stayed uncovered on purpose rather than by
+oversight:
+
+- **Defensive guards that are structurally unreachable.**
+  `createBuilderStore`'s `moveStep`/`moveField` both validate their
+  index is in range _before_ calling `Array.splice`, so the follow-up
+  `if (!moved)` check can never actually see `moved` be falsy — same
+  story for `createFormStore.goToStep`'s `currentStep?.fields ?? []`,
+  guarded by index clamping that already prevents `currentStep` from
+  being `undefined`. Forcing these would mean mocking `Array.splice` or
+  hand-corrupting internal state — testing the mock, not the code.
+- **`NumberFieldControl`'s `Number.isNaN` branch.** In theory,
+  unparseable text producing `NaN` should fall back to `null`. In
+  practice, a real `<input type="number">` — including jsdom's, which
+  this suite runs against — sanitizes its own `.value` to `""` for any
+  string that isn't a valid intermediate number, so the branch can't be
+  reached by typing into the actual control; it would need directly
+  invoking the internal parser with a hand-crafted string, which tests
+  the parser's contract in isolation rather than anything a user (or
+  the browser standing in for one) can actually trigger.
+- **DnD-only styling branches** — `FieldPalette`/`FieldCard`/
+  `StepCanvas`'s `isDraggingOver`/`isDragging` CSS-class branches, and
+  `BuilderPage`'s `handleDragEnd` body. These only run mid-gesture
+  inside `@hello-pangea/dnd`'s own pointer-sensor lifecycle, which the
+  Vitest/jsdom environment doesn't simulate — but `e2e/builder.spec.ts`
+  drives real mouse events through a real browser and exercises this
+  exact code path already. Unit-mocking the DnD library to force these
+  branches in jsdom would test the mock's behavior, not the app's.
+- **A few remaining `PropertyInspector.tsx` branches** (deep option/
+  operator/value-editor conditionals) stayed as the one deliberately
+  under-invested area of this pass — the file already has 19+ direct
+  unit tests covering its primary behavior, and the remaining branches
+  are narrow edge combinations judged lower value than the gaps above
+  for the time this phase had.
+
+Coverage thresholds in `vite.config.ts` were raised from 80/75/80/80 to
+95/90/95/95 — a few points below the actual numbers rather than equal to
+them, so a normal future change doesn't fail CI over noise, while still
+locking in this phase's gains as a floor future work can't quietly
+regress under.
+
+### One thing this phase found along the way
+
+Not a coverage gap: running `tsc -b` as part of full CI (rather than
+relying on `vitest run` alone, which type-checks more leniently)
+surfaced a latent type error in `PropertyInspector.test.tsx` — its
+`vi.fn()` mocks were typed too loosely to satisfy the component's actual
+prop signatures. Harmless at runtime (the mocks worked fine), but it
+meant `npm run build`'s own `tsc -b` step would have failed the moment
+someone ran it clean. Fixed by typing each mock against
+`PropertyInspectorProps` directly instead of a bare `ReturnType<typeof
+vi.fn>`. A reminder that "the tests pass" and "the project type-checks"
+are two different claims — this phase's `npm run ci` run is what caught
+the gap between them.
 
 ## Stack
 
 - [Vite](https://vite.dev) + React 19 + TypeScript (strict mode, plus the
-  extra strictness flags `strict` alone doesn't enable - see
+  extra strictness flags `strict` alone doesn't enable — see
   `tsconfig.app.json`)
 - [Zustand](https://github.com/pmndrs/zustand) for state
 - [ESLint](https://eslint.org) (flat config, type-checked) + [Prettier](https://prettier.io)
@@ -164,7 +313,7 @@ npm run dev
 src/
   components/ui/       Shared, schema-agnostic UI primitives (Button,
                         TextInput, Select, RadioGroup, Checkbox,
-                        FieldWrapper - presentational only)
+                        FieldWrapper — presentational only)
   features/
     form-renderer/     Schema → DOM renderer (Phase 1, done)
       fieldRegistry.tsx    FieldType -> control component lookup table
@@ -177,7 +326,7 @@ src/
       fields/               One control per FieldType
     workflow/           Multi-step navigation + store (Phases 2-3, done)
       types.ts              FormController contract (state + actions +
-                             derived isDirty) - the shape form-renderer
+                             derived isDirty) — the shape form-renderer
                              consumes and knows nothing else about
       createFormStore.ts    Per-instance Zustand store factory: values,
                              errors, touched, dirty, asyncStatus,
@@ -204,7 +353,7 @@ src/
                               so untouched-but-invalid fields stay quiet
     builder/            Drag-and-drop builder dashboard (Phase 4, done):
                         edits a FormSchema as data. A deliberately
-                        separate store from workflow/'s - that one runs
+                        separate store from workflow/'s — that one runs
                         a fill session against a schema, this one edits
                         the schema itself; they share only the
                         FormSchema contract.
@@ -213,7 +362,7 @@ src/
                               remove/move/rename fields and steps,
                               change a field's type, edit its
                               validation rules and visibleWhen
-                              condition - keeps dangling visibleWhen
+                              condition — keeps dangling visibleWhen
                               references clean when a field they depend
                               on is removed or renamed
       useBuilder.ts           React hook, same lazy-useState pattern as
@@ -223,7 +372,7 @@ src/
                                 rule in a field's validation array
       resolveDragEnd.ts       Pure function: a DragDropContext
                               onDragEnd result -> an addField/moveField
-                              action or null - extracted so every
+                              action or null — extracted so every
                               branch is unit-testable without
                               simulating a real pointer drag
       FieldPalette.tsx        Field-type source list: drag onto the
@@ -234,13 +383,13 @@ src/
       FieldCard.tsx           One field's row: drag handle + up/down/
                               remove button equivalents
       StepTabs.tsx            Step management via up/down/remove
-                              buttons only (no drag - see the comment
+                              buttons only (no drag — see the comment
                               in the file for why)
       PropertyInspector.tsx   Edits the selected field: label/name/
                               type/options/validation/visibility
       LivePreview.tsx         Mounts the real FormRenderer +
                               useWorkflowFormController against the
-                              schema being built - proves the builder's
+                              schema being built — proves the builder's
                               output is exactly what the runtime
                               consumes, not a mock
       SchemaJsonView.tsx      Raw FormSchema JSON, for the curious
@@ -249,16 +398,16 @@ src/
                               memoized (Phase 5) so FieldPalette/
                               StepCanvas's `memo` wrapping is effective
       renderTracker.ts        Per-component render counter, mirroring
-                              form-renderer's - used only by the Phase 5
+                              form-renderer's — used only by the Phase 5
                               render-isolation test
-  types/schema.ts       FormSchema/StepSchema/FieldSchema - the contract
+  types/schema.ts       FormSchema/StepSchema/FieldSchema — the contract
                         everything above renders from
   test/                Test setup
 e2e/                   Playwright specs
 vercel.json            Explicit build config for the Vercel deploy
 ```
 
-CI (`.github/workflows/ci.yml`) lives at the monorepo root - see the root
+CI (`.github/workflows/ci.yml`) lives at the monorepo root — see the root
 README. Deployment is handled separately by Vercel's own GitHub
 integration (Root Directory = `form-builder`), not by CI; `vercel.json` in
 this folder pins the build command/output directory so that isn't left to
@@ -267,7 +416,7 @@ framework auto-detection.
 ## Environment / tooling notes
 
 - Node version pinned via `.nvmrc` (22).
-- `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` - optional env var read by
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` — optional env var read by
   `playwright.config.ts` to point Playwright at a pre-provisioned Chromium
   binary instead of downloading one. Not needed on a normal machine or in
   CI (`npx playwright install --with-deps` handles it there); useful in a

@@ -33,4 +33,16 @@ describe('App', () => {
     expect(await screen.findByLabelText(/full name/i)).toBeInTheDocument()
     expect(screen.queryByLabelText('Form title')).not.toBeInTheDocument()
   })
+
+  it('the debug panel reflects dirty state as fields are edited', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByLabelText(/full name/i)
+
+    expect(screen.getByText(/Dirty: no/)).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/full name/i), 'Ada')
+
+    expect(screen.getByText(/Dirty: yes/)).toBeInTheDocument()
+  })
 })

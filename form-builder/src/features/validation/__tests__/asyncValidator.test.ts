@@ -31,6 +31,12 @@ describe('mockAsyncValidator', () => {
     await expect(promise).resolves.toMatchObject({ valid: false })
   })
 
+  it('treats a non-string value as never blocklisted (async rules only ever apply to text-like fields)', async () => {
+    const promise = mockAsyncValidator(42, '/api/check-promo-code')
+    await vi.advanceTimersByTimeAsync(MOCK_ASYNC_LATENCY_MS)
+    await expect(promise).resolves.toEqual({ valid: true })
+  })
+
   it('treats an endpoint with no configured blocklist as always valid', async () => {
     const promise = mockAsyncValidator('anything', '/api/unknown-endpoint')
     await vi.advanceTimersByTimeAsync(MOCK_ASYNC_LATENCY_MS)

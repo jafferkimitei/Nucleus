@@ -57,4 +57,12 @@ describe('field render isolation', () => {
     expect(fieldRenderCounts['b']).toBe(1)
     expect(fieldRenderCounts['c']).toBe(1)
   })
+
+  it('resetFieldRenderCounts actually clears counts left over from a previous test', () => {
+    // This test's own beforeEach just reset a *populated* counter object
+    // (the previous test left `a`/`b`/`c` behind) — proves
+    // resetFieldRenderCounts deletes stale keys rather than only ever
+    // running against an already-empty object.
+    expect(fieldRenderCounts).toEqual({})
+  })
 })

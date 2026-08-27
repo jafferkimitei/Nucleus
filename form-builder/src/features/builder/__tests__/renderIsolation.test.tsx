@@ -43,4 +43,12 @@ describe('builder render isolation', () => {
     await user.type(screen.getByLabelText('Form title'), 'x')
     expect(builderRenderCounts['FieldPalette']).toBe(1)
   })
+
+  it('resetBuilderRenderCounts actually clears counts left over from a previous test', () => {
+    // This test's own beforeEach just reset a *populated* counter object
+    // (the previous test left FieldPalette's count behind) — proves
+    // resetBuilderRenderCounts deletes stale keys rather than only ever
+    // running against an already-empty object.
+    expect(builderRenderCounts).toEqual({})
+  })
 })

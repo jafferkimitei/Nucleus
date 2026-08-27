@@ -241,6 +241,59 @@ describe('createFormStore — validation', () => {
     expect(store.getState().touched['d']).toBe(false)
   })
 
+  it('marks the field touched only once — resolving an async check on an already-touched field leaves touched alone', async () => {
+    const { validator, resolveOldest } = makeControllableAsyncValidator()
+    const store = createFormStore(schema, validator)
+    store.getState().setFieldValue('a', 'Ada')
+    store.getState().goToNextStep()
+
+    // Touched *before* typing, unlike the "no blur needed" test above —
+    // exercises the branch where state.touched[name] is already true, so
+    // the reducer reuses the existing `touched` object instead of
+    // creating a new one.
+    store.getState().setFieldTouched('c')
+    store.getState().setFieldValue('c', 'TAKEN')
+    await vi.advanceTimersByTimeAsync(ASYNC_DEBOUNCE_MS)
+    resolveOldest({ valid: false, message: 'Already taken.' })
+    await Promise.resolve()
+
+    expect(store.getState().touched['c']).toBe(true)
+  })
+
+  it('falls back to a default message when an invalid async result carries none', async () => {
+    const { validator, resolveOldest } = makeControllableAsyncValidator()
+    const store = createFormStore(schema, validator)
+    store.getState().setFieldValue('a', 'Ada')
+    store.getState().goToNextStep()
+
+    store.getState().setFieldValue('c', 'TAKEN')
+    await vi.advanceTimersByTimeAsync(ASYNC_DEBOUNCE_MS)
+    resolveOldest({ valid: false }) // no `message` field this time
+    await Promise.resolve()
+
+    expect(store.getState().asyncStatus['c']).toBe('invalid')
+    expect(store.getState().errors['c']).toBe('This value is invalid.')
+  })
+
+  it('clearing a field back to empty cancels its own pending debounce timer', async () => {
+    const { validator, pendingCount } = makeControllableAsyncValidator()
+    const store = createFormStore(schema, validator)
+    store.getState().setFieldValue('a', 'Ada')
+    store.getState().goToNextStep()
+
+    store.getState().setFieldValue('c', 'PROMO1')
+    expect(store.getState().asyncStatus['c']).toBe('pending')
+
+    // Cleared before the debounce elapses — scheduleAsyncValidation's
+    // empty-value branch must cancel the still-pending timer (not just
+    // ignore it), or the stale request would still fire later.
+    store.getState().setFieldValue('c', '')
+    expect(store.getState().asyncStatus['c']).toBeUndefined()
+
+    await vi.advanceTimersByTimeAsync(ASYNC_DEBOUNCE_MS)
+    expect(pendingCount()).toBe(0) // the cancelled timer never called the validator
+  })
+
   it('reset cancels an in-flight async check so a late resolution cannot resurrect stale state', async () => {
     const { validator, resolveOldest, pendingCount } =
       makeControllableAsyncValidator()
@@ -264,5 +317,48 @@ describe('createFormStore — validation', () => {
     resolveOldest({ valid: true })
     await Promise.resolve()
     expect(store.getState().asyncStatus['c']).toBeUndefined()
+  })
+
+  it('a circular visibleWhen dependency settles instead of looping forever', () => {
+    // A misconfigured (or maliciously imported) schema could have two
+    // fields whose visibility depends on each other. recomputeVisibility-
+    // Cascade's `processed` set exists precisely to stop that from
+    // looping: clearing 'a' hides 'b' (since b needs a non-empty), which
+    // in turn re-examines 'a' — already processed this pass, so it's
+    // skipped rather than re-queued forever.
+    const circularSchema: FormSchema = {
+      id: 'circular',
+      title: 'Circular',
+      steps: [
+        {
+          id: 'step-1',
+          title: 'Step 1',
+          fields: [
+            {
+              id: 'f-a',
+              name: 'a',
+              type: 'text',
+              label: 'A',
+              defaultValue: 'x',
+              visibleWhen: { fieldName: 'b', operator: 'notEmpty' },
+            },
+            {
+              id: 'f-b',
+              name: 'b',
+              type: 'text',
+              label: 'B',
+              defaultValue: 'y',
+              visibleWhen: { fieldName: 'a', operator: 'notEmpty' },
+            },
+          ],
+        },
+      ],
+    }
+    const store = createFormStore(circularSchema)
+
+    store.getState().setFieldValue('a', '')
+
+    expect(store.getState().values['a']).toBeNull()
+    expect(store.getState().values['b']).toBeNull()
   })
 })

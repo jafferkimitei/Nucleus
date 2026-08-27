@@ -1,8 +1,11 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useWorkflowFormController } from '@/features/workflow'
+import {
+  ASYNC_DEBOUNCE_MS,
+  useWorkflowFormController,
+} from '@/features/workflow'
 import type { FormSchema } from '@/types/schema'
 
 import { FormRenderer } from '../FormRenderer'
@@ -60,6 +63,26 @@ const conditionalSchema: FormSchema = {
             operator: 'equals',
             value: 'us',
           },
+        },
+      ],
+    },
+  ],
+}
+
+const asyncSchema: FormSchema = {
+  id: 'async-form',
+  title: 'Async form',
+  steps: [
+    {
+      id: 'step-1',
+      title: 'Step one',
+      fields: [
+        {
+          id: 'f-promo',
+          name: 'promo',
+          type: 'text',
+          label: 'Promo code',
+          validation: [{ type: 'async', endpoint: '/api/check-promo-code' }],
         },
       ],
     },
@@ -130,5 +153,30 @@ describe('FormRenderer — validation', () => {
     // stale value from before it was hidden.
     await user.selectOptions(screen.getByLabelText('Country'), 'us')
     expect(screen.getByLabelText('State')).toHaveValue('')
+  })
+
+  describe('with a pending async check', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('disables Next and swaps its label to "Checking…" while the check is in flight', async () => {
+      render(<DemoForm schema={asyncSchema} />)
+
+      // fireEvent rather than userEvent.type — userEvent's own internal
+      // delays don't play well with fake timers, and this test only
+      // cares about the field's committed value, not simulating keystrokes.
+      fireEvent.change(screen.getByLabelText('Promo code'), {
+        target: { value: 'ANYTHING' },
+      })
+      await vi.advanceTimersByTimeAsync(ASYNC_DEBOUNCE_MS)
+
+      const next = screen.getByRole('button', { name: 'Checking…' })
+      expect(next).toBeDisabled()
+    })
   })
 })
