@@ -29,15 +29,17 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/test/**',
       ],
-      // Phase 1 scaffold only — there's nothing but a placeholder shell
-      // to cover yet, so this floor is deliberately loose. Tightened
-      // (mirroring form-builder's Phase 6 pass) once there's real logic
-      // — the FS store, worker protocol, bundler plugin — to measure.
+      // Raised in Phase 2 now that there's real logic to measure (the
+      // virtual file system's store, helpers, and tree UI) — set a few
+      // points below the actual numbers (~93/86/95/93 as of Phase 2),
+      // not equal to them, so a normal future change doesn't fail CI
+      // over noise. Will keep climbing phase over phase; a dedicated
+      // gap-closing pass (mirroring form-builder's Phase 6) is Phase 9.
       thresholds: {
-        statements: 70,
-        branches: 60,
-        functions: 70,
-        lines: 70,
+        statements: 88,
+        branches: 80,
+        functions: 90,
+        lines: 88,
       },
     },
   },

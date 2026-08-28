@@ -6,9 +6,11 @@ compile it with `esbuild-wasm` on a dedicated Web Worker (so typing never
 blocks the UI thread), and run the result in a sandboxed `<iframe>` — no
 server-side build step involved.
 
-> **Status: Phase 1 (scaffold) complete.** The workspace, tooling, and a
-> placeholder three-pane shell are in place. Everything else below is
-> roadmap, not yet built.
+> **Status: Phase 2 (virtual file system) complete.** The workspace,
+> tooling, and a virtual hierarchical file system with a working tree UI
+> are in place — see it live at
+> [anvil-chi-eight.vercel.app](https://anvil-chi-eight.vercel.app).
+> Everything from Phase 3 on is roadmap, not yet built.
 
 ## Why this project
 
@@ -36,9 +38,15 @@ than as actual files. The skills it's built to demonstrate:
       React 19 + TypeScript (strict) + ESLint + Prettier + Vitest +
       Playwright, CI job, and a placeholder three-pane shell (file
       explorer / editor / preview landmarks with no behavior yet).
-- [ ] **Phase 2 — Virtual file system.** A hierarchical file/folder tree as
-      data, a store with CRUD operations (create, rename, move, delete),
-      and a file-tree UI (expand/collapse, selection).
+- [x] **Phase 2 — Virtual file system.** A hierarchical file/folder tree as
+      data (a normalized, flat `Record<id, node>` map with `parentId` /
+      `childIds` links, not nested objects — see
+      [`src/features/fs/types.ts`](./src/features/fs/types.ts)), a Zustand
+      store with CRUD operations (create, rename, move, delete — all but
+      move de-duplicating a colliding name rather than failing), and a
+      file-tree UI (expand/collapse, selection, inline create/rename).
+      `move` has no drag-and-drop affordance yet — a deliberate scope cut,
+      see [`FileTree.tsx`](./src/features/fs/FileTree.tsx)'s doc comment.
 - [ ] **Phase 3 — Code editor.** Monaco wired to the virtual FS: opening a
       file loads its model into the editor, edits write back to FS state,
       a multi-tab open-files bar.
@@ -111,20 +119,26 @@ Run from this directory, or from the root with `--workspace=anvil`:
 
 ```
 anvil/
-  e2e/                 Playwright specs
-  public/              Static assets served as-is
+  e2e/                        Playwright specs
+  public/                     Static assets served as-is
   src/
-    App.tsx            Phase 1: the three-pane shell (files / editor / preview)
-    main.tsx           Entry point
-    index.css           Global styles
-    test/setup.ts       Vitest setup (jest-dom matchers, cleanup)
+    App.tsx                   The three-pane shell (files / editor / preview)
+    main.tsx                  Entry point
+    index.css                 Global styles
+    test/setup.ts             Vitest setup (jest-dom matchers, cleanup)
+    features/
+      fs/                     Phase 2: the virtual file system
+        types.ts              FsNode / FsState / FsActions
+        fsHelpers.ts          Pure tree helpers (dedup, cycle check, sort, path)
+        createFsStore.ts      The Zustand store (factory, not a singleton)
+        useFs.ts              Per-component store instance hook
+        FileTree.tsx          The tree UI
 ```
 
-This will grow the same `features/`-oriented shape `form-builder` settled
-into (see that project's README) once there's enough real logic to
-organize — a `features/fs/`, `features/editor/`, `features/compiler/`, and
-`features/preview/` split is the likely shape, one per roadmap phase above,
-but it isn't forced in ahead of the code that would live there.
+This is the same `features/`-oriented shape `form-builder` settled into
+(see that project's README) — one directory per roadmap phase's slice of
+the app, added as each phase actually needs it rather than scaffolded in
+up front.
 
 ## Environment / tooling notes
 
@@ -142,3 +156,15 @@ but it isn't forced in ahead of the code that would live there.
   WebContainers or CodeSandbox's sandboxes do it) would need its own
   subdomain, which is out of scope for a portfolio project but worth
   calling out explicitly as a scope cut rather than leaving it implicit.
+- Phase 2 shipped a real accessibility bug worth noting rather than
+  quietly fixing: the tree row's rename/delete/create-in-folder buttons
+  were first built hover-revealed (`visibility: hidden` by default, shown
+  on `:hover`). That's not just a cosmetic choice — `visibility: hidden`
+  removes an element from the accessibility tree _and_ the tab order, so
+  those actions would have been completely unreachable from the keyboard,
+  not merely harder to discover. Caught by the Playwright E2E test (its
+  locator couldn't find the hidden button at all), not by the component
+  tests, which don't render real CSS. Fixed by making the actions always
+  visible instead of hover-gated — busier-looking, but actually usable.
+  A worthwhile reminder that an E2E suite running against real, styled
+  DOM catches a category of bug component tests structurally can't.

@@ -1,19 +1,22 @@
+import { FileTree, getPath, useFs } from '@/features/fs'
+
 /**
- * Phase 1 scaffold: the three-pane shell the rest of the roadmap fills
- * in. Each panel is a landmark region with its own accessible name so
- * later phases (and their tests) can target a panel without depending
- * on layout order — `aria-label` here, not a heading-text lookup, is
- * the stable hook.
+ * The three-pane shell, now with its first two panes wired to real
+ * state: Files is the virtual file system's tree (Phase 2); Editor is
+ * a read-only preview of whichever file is selected, standing in for
+ * the Monaco editor Phase 3 will put there instead. Preview stays a
+ * placeholder until Phases 4-7 land the compile-and-run pipeline
+ * behind it.
  *
- *   Files (Phase 2: virtual FS tree)
- *     -> Editor (Phase 3: Monaco, wired to the virtual FS)
- *     -> Preview (Phases 4-7: Web Worker + esbuild-wasm bundle,
- *        rendered inside a sandboxed iframe)
- *
- * See the README for the full roadmap and the architecture this shell
- * is standing in for.
+ * Both panels read the same `useFs()` instance — proving out, on a
+ * small scale, the shape Phase 3 will lean on for real: the editor
+ * doesn't own file content, the virtual file system does.
  */
 function App() {
+  const fs = useFs()
+  const selectedNode = fs.selectedId ? fs.nodes[fs.selectedId] : undefined
+  const selectedFile = selectedNode?.type === 'file' ? selectedNode : undefined
+
   return (
     <main>
       <h1>Anvil</h1>
@@ -29,9 +32,7 @@ function App() {
           aria-label="File explorer"
         >
           <h2>Files</h2>
-          <p className="workbench__placeholder">
-            Coming in Phase 2: a virtual, hierarchical file tree.
-          </p>
+          <FileTree fs={fs} />
         </section>
 
         <section
@@ -39,9 +40,21 @@ function App() {
           aria-label="Editor"
         >
           <h2>Editor</h2>
-          <p className="workbench__placeholder">
-            Coming in Phase 3: a Monaco editor wired to the virtual file system.
-          </p>
+          {selectedFile ? (
+            <div className="editor-preview">
+              <p className="editor-preview__path">
+                {getPath(fs.nodes, selectedFile.id)}
+              </p>
+              <pre className="editor-preview__content">
+                {selectedFile.content}
+              </pre>
+            </div>
+          ) : (
+            <p className="workbench__placeholder">
+              Coming in Phase 3: a Monaco editor wired to the virtual file
+              system.
+            </p>
+          )}
         </section>
 
         <section
